@@ -1,8 +1,8 @@
-# Contexto del Proyecto: CRM Simple para Negocios de Servicios
+# Contexto del Proyecto: Gestion de Tareas y Actividades
 
 ## 1. Descripción del Proyecto
 
-Un CRM minimalista para freelancers, agencias pequeñas o negocios de servicios. Gestión de clientes, seguimiento de propuestas/cotizaciones, pipeline de ventas, recordatorios de seguimiento y facturación básica. Sin la complejidad de Salesforce o HubSpot.
+
 
 ## 2. Stack Tecnológico
 
@@ -53,7 +53,7 @@ export default function MyForm() {
 
 ### BACKEND
 
-- **Entorno de Desarrollo:** pip.
+- **Entorno de Desarrollo:** pip + unicorn.
 - **Lenguaje:** Python.
 - **Framework:** FastAPI (en la version mas reciente).
 - **ORM:** SQLAlchemy 2.0 (estilo declarativo moderno).
@@ -114,9 +114,9 @@ Lanzar HTTPException de fastapi con el código adecuado (404 para no encontrado,
 
 ## 4. Convenciones de Nombres
 
-- **Base de Datos:** `camelCase` para campos (ej: `fechaEntrada`), `PascalCase` para modelos (ej: `Ticket`, `Vehiculo`).
+- **Base de Datos:** `camelCase` para campos (ej: `beginDate`), `PascalCase` para modelos (ej: `Ticket`, `Task`).
 - **Variables:** `camelCase` (ej: `espaciosDisponibles`).
-- **Archivos:** `kebab-case` o seguir la convención del framework (ej: `parking-controller.ts`).
+- **Archivos:** `kebab-case` o seguir la convención del framework.
 
 ## 6. Características principales
 
