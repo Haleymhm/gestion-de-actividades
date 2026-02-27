@@ -2,8 +2,6 @@
 
 ## 1. Descripción del Proyecto
 
-
-
 ## 2. Stack Tecnológico
 
 ### FRONTEND
@@ -15,7 +13,9 @@
 - **Componentes UI:** Shadcn UI.
 - **Auth:** AuthJS.
 - **Validaciones:** Zod + React Hook Form.
-`import { z } from 'zod';
+  
+```tsx
+import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -46,7 +46,8 @@ export default function MyForm() {
       <button type="submit">Enviar</button>
     </form>
   );
-}`
+}
+```
 
 - **Versionado:** Git.
 - **Control de Versiones:** GitHub.
@@ -64,14 +65,16 @@ export default function MyForm() {
 - **Control de Versiones:** GitHub.
 
 #### ESTRUCTURA DEL BACKEND
-´app/
+```
+app/
 ├── core/           # Configuración global, variables de entorno (pydantic-settings)
 ├── db/             # Sesión de base de datos y Base declarativa
 ├── models/         # Modelos de SQLAlchemy (Tablas)
 ├── schemas/        # Modelos de Pydantic (Validación de entrada/salida)
 ├── crud/           # Lógica de persistencia (Consultas SQL)
 ├── api/            # Rutas/Endpoints (FastAPI Routers)
-└── main.py         # Punto de entrada´
+└── main.py         # Punto de entrada
+```
 
 ## 3. Reglas de Codificación
 
@@ -101,9 +104,11 @@ Ejemplo: db: ´Session = Depends(get_db)´.
 - **Status Codes:** Siempre especificar el status_code en el decorador (ej. status_code=status.HTTP_201_CREATED).
 
 #### Manejo de Errores
-No retornar diccionarios de error genéricos.
+> [!IMPORTANT]
+> No retornar diccionarios de error genéricos.
 
-Lanzar HTTPException de fastapi con el código adecuado (404 para no encontrado, 400 para errores de lógica).
+> [!IMPORTANT]
+> Lanzar HTTPException de fastapi con el código adecuado (404 para no encontrado, 400 para errores de lógica).
 
 ### Frontend & UI (Tailwind + Shadcn)
 - Usa **TypeScript** estricto para todo. Define interfaces o tipos para todas las estructuras de datos, especialmente las que vienen de la base de datos.
