@@ -65,6 +65,7 @@ export default function MyForm() {
 - **Control de Versiones:** GitHub.
 
 #### ESTRUCTURA DEL BACKEND
+
 ```
 app/
 ├── core/           # Configuración global, variables de entorno (pydantic-settings)
@@ -79,31 +80,35 @@ app/
 ## 3. Reglas de Codificación
 
 ### General
+
 - Usa el idioma ingles
 - Prefiere la programación funcional y componentes limpios.
 - Documenta las funciones complejas en español.
 - No uses variables globales.
 - Utiliza versiones para las rutas de la API.
 
-
 ### Backend & Base de Datos
 
 #### Modelos vs Schemas
+
 - **Models (models/):** Representan la base de datos. Usar el estilo Mapped y mapped_column de SQLAlchemy 2.0.
 
 - **Schemas (schemas/):** Representan los datos que viajan por HTTP. Siempre usar Pydantic. Separar en Base, Create y Response (ej. UserCreate, UserPublic).
 
 #### Inyección de Dependencias
+
 Toda interacción con la DB debe usar la dependencia get_db.
 
 Ejemplo: db: ´Session = Depends(get_db)´.
 
 #### Tipado y Documentación
+
 - **Tipado estricto:** Todo parámetro y retorno de función debe tener type hints.
 - **Async:** Usar async def para los endpoints, a menos que se use una librería bloqueante que no sea compatible.
 - **Status Codes:** Siempre especificar el status_code en el decorador (ej. status_code=status.HTTP_201_CREATED).
 
 #### Manejo de Errores
+>
 > [!IMPORTANT]
 > No retornar diccionarios de error genéricos.
 
@@ -111,6 +116,7 @@ Ejemplo: db: ´Session = Depends(get_db)´.
 > Lanzar HTTPException de fastapi con el código adecuado (404 para no encontrado, 400 para errores de lógica).
 
 ### Frontend & UI (Tailwind + Shadcn)
+
 - Usa **TypeScript** estricto para todo. Define interfaces o tipos para todas las estructuras de datos, especialmente las que vienen de la base de datos.
 - Usa pnpm para instalar dependencias.
 - **Estilos:** No escribas CSS personalizado. Usa siempre las clases utilitarias de **TailwindCSS**.
