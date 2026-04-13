@@ -28,7 +28,7 @@ app = FastAPI(
     openapi_tags=tags_metadata,
 )
 
-from app.api.routers import auth
+from app.api.routers import auth, boards
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,7 +39,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
-
+app.include_router(boards.router, prefix="/api/boards", tags=["Boards"])
 @app.get("/", tags=["HealthCheck"])
 def read_root():
     """
