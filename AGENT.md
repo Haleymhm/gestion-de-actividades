@@ -1,142 +1,65 @@
-# Contexto del Proyecto: Gestion de Tareas y Actividades
+# Proyecto Kanban "Gestión de Actividades" - Contexto Maestro (AGENT.md)
 
-## 1. Descripción del Proyecto
+Este documento es el punto de referencia integral del proyecto y consolida todos los requerimientos planificados (PRD) y las guías de implementación (Frontend y Backend). Sirve como la principal fuente de verdad arquitectónica y metodológica para el desarrollo paso a paso.
 
-## 2. Stack Tecnológico
+---
 
-### FRONTEND
+## 1. Visión General y Arquitectura
+*   **Proyecto:** Gestión de Tareas Kanban.
+*   **Arquitectura:** Monorepo. El código base debe alojar los directorios `/frontend` y `/backend` con separación de responsabilidades y ejecución en ecosistemas distintos.
 
-- **Entorno de Desarrollo:** pnpm.
-- **Lenguaje:** TypeScript (Strict mode).
-- **Framework:** Next.js.
-- **Estilos:** TailwindCSS.
-- **Componentes UI:** Shadcn UI.
-- **Auth:** AuthJS.
-- **Validaciones:** Zod + React Hook Form.
-  
-```tsx
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+## 2. Stack Tecnológico Estricto
 
-// 1. Defines el esquema de "la verdad"
-const userSchema = z.object({
-  email: z.string().email("Email inválido"),
-  password: z.string().min(8, "Mínimo 8 caracteres"),
-});
+*   **Frontend (/frontend):** Next.js (App Router), TypeScript Estricto, pnpm, Shadcn UI + Tailwind CSS (soporte nativo Light/Dark Mode vía `next-themes`), `@dnd-kit/core` (Drag and Drop), React Hook Form + Zod (Formularios y validaciones), Axios, `@tanstack/react-query`, `Auth.js` (Autenticación y Sesiones).
+*   **Backend (/backend):** FastAPI (Python 3.10+), Entorno Virtual (`venv`), Pydantic v2 (Validación profunda), Uvicorn, SQLAlchemy + Alembic (PostgreSQL/SQLite), `python-jose` + `passlib` (Seguridad/JWT).
 
-// 2. Extraes el tipo automáticamente
-type UserForm = z.infer<typeof userSchema>;
+## 3. Especificación de Roles
+El backend (mediante RBAC) y frontend (mediante validación de sesión UI) deben soportar:
+1.  **Administrador General:** Superusuario, acceso absoluto a todos los tableros y ajustes.
+2.  **Dueño / Propietario del Tablero:** Creador original del tablero. Acceso total a editar listas y gestionar tareas en su respectivo tablero.
+3.  **Colaborador:** Usuario invitado a un tablero. Posee restricciones: Solo crea tareas o edita/mueve las tareas en donde haya sido asignado u asociado.
+4.  **Visitante:** Landing page y redirección a inicio de sesión.
 
-export default function MyForm() {
-  const { register, handleSubmit, formState: { errors } } = useForm<UserForm>({
-    resolver: zodResolver(userSchema), // 3. La conexión mágica
-  });
+## 4. Requerimientos Funcionales de la Entidad Principal (Card / Tarea)
+El núcleo de la aplicación radica en el detalle minucioso de cada Tarea, que debe contemplar internamente:
+*   Título y Descripción detallada.
+*   **Fechas de Ejecución:** Fecha de inicio y Fecha de término.
+*   **Asignación de Usuarios:** Selector de colaboradores responsables.
+*   **Checklists:** Sub-tareas dinámicas y su progreso.
+*   **Archivos Adjuntos:** Soporte form-data hacia el backend.
+*   **Comentarios:** Registro tipo conversacional (usuario / mensaje / datetime).
+*   **Drag & Drop:** Interfaz animada que permite actualizar el orden o el estado entre columnas, comunicándose con backend en tiempo real (Optimistic Updates).
 
-  const onSubmit = (data: UserForm) => console.log(data);
+---
 
-  return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <input {...register("email")} />
-      {errors.email && <span>{errors.email.message}</span>}
+## 5. Implementación Frontend (Next.js)
 
-      <input type="password" {...register("password")} />
-      {errors.password && <span>{errors.password.message}</span>}
-      
-      <button type="submit">Enviar</button>
-    </form>
-  );
-}
-```
+### Reglas para la UI:
+1.  Inicializar con `pnpm create next-app@latest frontend`. Limpiar estilos base a Tailwind puro.
+2.  Instalar e inicializar `Shadcn UI`. Requerimientos base: `button, card, dialog, form, input, label, toast`.
+3.  Integrar `Auth.js` resguardando las carpetas privadas (ej. `/app/(protected)/boards`).
+4.  Hacer llamadas asíncronas vía Axios delegando interceptores para adjuntar el JWT de AuthJS.
+5.  Crear componente `/boards/[id]` que use Drag-and-Drop y reaccione condicionalmente con base al nivel de permiso (Dueño o Colaborador).
+6.  La creación/edición de tareas se muestra vía `Sheet` o `Dialog`, respaldada estáticamente en TypeScript usando `zod`.
 
-- **Versionado:** Git.
-- **Control de Versiones:** GitHub.
+---
 
-### BACKEND
+## 6. Implementación Backend (FastAPI)
 
-- **Entorno de Desarrollo:** pip + unicorn.
-- **Lenguaje:** Python.
-- **Framework:** FastAPI (en la version mas reciente).
-- **ORM:** SQLAlchemy 2.0 (estilo declarativo moderno).
-- **Base de Datos:** PostgresSQL.
-- **Validación:** Pydantic v2.
-- **Migraciones:** Alembic.
-- **Versionado:** Git.
-- **Control de Versiones:** GitHub.
+### Reglas para la API:
+1.  Bajo la carpeta `/backend`, inicializar obligatoriamente un entorno virtual y sus dependencias (vía `requirements.txt`).
+2.  Estructurarlo mediante el patrón MVC o Domains dentro de `/app`: `/api, /core, /db, /models, /schemas`.
+3.  **Configuración de Base de Datos y Modelos relacionales:**
+    *   **User:** id, email, password, *global_role*.
+    *   **Board:** id, title, owner_id. Tabla intermedia: *BoardMember* (asigna Colaboradores a un tablero).
+    *   **Column:** id, title, order, board_id.
+    *   **Card:** id, title, description, start_date, end_date, order, column_id.
+    *   **Archivos/Asignaciones (Asociadas a Card):** TaskAssignee (tabla pivote), Checklist (id, status), Attachment (rutas de archivo), Comment (mensaje, created_at, user_id).
+4.  Mantener migraciones seguras y precisas construidas a base de revisiones via **Alembic**.
+5.  **Endpoints Funcionales Mínimos:**
+    *   Autorización (`POST /login` con RBAC dependecy).
+    *   Tableros y Listas (GET, POST, DELETE).
+    *   Gestor Avanzado de Tarjetas: (`POST /cards`, parchear drag & drop, adjuntar `attachments` con metadata, actualizar `checklists`, endpoint para agregar `/comments`).
 
-#### ESTRUCTURA DEL BACKEND
-
-```
-app/
-├── core/           # Configuración global, variables de entorno (pydantic-settings)
-├── db/             # Sesión de base de datos y Base declarativa
-├── models/         # Modelos de SQLAlchemy (Tablas)
-├── schemas/        # Modelos de Pydantic (Validación de entrada/salida)
-├── crud/           # Lógica de persistencia (Consultas SQL)
-├── api/            # Rutas/Endpoints (FastAPI Routers)
-└── main.py         # Punto de entrada
-```
-
-## 3. Reglas de Codificación
-
-### General
-
-- Usa el idioma ingles
-- Prefiere la programación funcional y componentes limpios.
-- Documenta las funciones complejas en español.
-- No uses variables globales.
-- Utiliza versiones para las rutas de la API.
-
-### Backend & Base de Datos
-
-#### Modelos vs Schemas
-
-- **Models (models/):** Representan la base de datos. Usar el estilo Mapped y mapped_column de SQLAlchemy 2.0.
-
-- **Schemas (schemas/):** Representan los datos que viajan por HTTP. Siempre usar Pydantic. Separar en Base, Create y Response (ej. UserCreate, UserPublic).
-
-#### Inyección de Dependencias
-
-Toda interacción con la DB debe usar la dependencia get_db.
-
-Ejemplo: db: ´Session = Depends(get_db)´.
-
-#### Tipado y Documentación
-
-- **Tipado estricto:** Todo parámetro y retorno de función debe tener type hints.
-- **Async:** Usar async def para los endpoints, a menos que se use una librería bloqueante que no sea compatible.
-- **Status Codes:** Siempre especificar el status_code en el decorador (ej. status_code=status.HTTP_201_CREATED).
-
-#### Manejo de Errores
->
-> [!IMPORTANT]
-> No retornar diccionarios de error genéricos.
-
-> [!IMPORTANT]
-> Lanzar HTTPException de fastapi con el código adecuado (404 para no encontrado, 400 para errores de lógica).
-
-### Frontend & UI (Tailwind + Shadcn)
-
-- Usa **TypeScript** estricto para todo. Define interfaces o tipos para todas las estructuras de datos, especialmente las que vienen de la base de datos.
-- Usa pnpm para instalar dependencias.
-- **Estilos:** No escribas CSS personalizado. Usa siempre las clases utilitarias de **TailwindCSS**.
-- **Componentes:** Para botones, inputs, modales y tablas, utiliza siempre los componentes de **Shadcn**. No crees componentes HTML nativos si existe una alternativa en Shadcn.
-- **Diseño:** La interfaz debe ser limpia y responder a dispositivos móviles (Mobile-first).
-
-## 4. Convenciones de Nombres
-
-- **Base de Datos:** `camelCase` para campos (ej: `beginDate`), `PascalCase` para modelos (ej: `Ticket`, `Task`).
-- **Variables:** `camelCase` (ej: `espaciosDisponibles`).
-- **Archivos:** `kebab-case` o seguir la convención del framework.
-
-## 6. Características principales
-
-- Dashboard con deals activos, ingresos del mes, cotizaciones pendientes y clientes nuevos
-- Gestión de contactos y empresas con historial de interacciones y notas
-- Pipeline de ventas visual estilo Kanban (prospecto, contactado, propuesta enviada, negociación, cerrado)
-- Creación y envío de cotizaciones/propuestas con detalle de servicios y precios
-- Seguimiento de deals con recordatorios automáticos
-- Facturación básica integrada, generar y enviar facturas desde un deal cerrado
-- Historial de interacciones por cliente
-- Reportes de ventas y tasa de conversión con gráficos y exportación a CSV
-- Integración con email y WhatsApp
+---
+> **Nota de Desarrollo Continua:** Todo desarrollo a nivel de código debe apegarse de forma estricta a este esquema. Las consultas futuras, configuraciones de servidor, o decisiones de diseño e infraestructura, deben consultar y honrar los perfiles descritos en este documento (AGENT.md).
