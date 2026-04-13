@@ -28,6 +28,8 @@ app = FastAPI(
     openapi_tags=tags_metadata,
 )
 
+from app.api.routers import auth
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"], # Restringido a NextJS en dev
@@ -35,6 +37,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 
 @app.get("/", tags=["HealthCheck"])
 def read_root():
