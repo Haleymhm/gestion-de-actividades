@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 # Metadata para Swagger UI
 description = """
@@ -42,6 +44,11 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(boards.router, prefix="/api/boards", tags=["Boards"])
 app.include_router(columns.router, prefix="/api/columns", tags=["Columns"])
 app.include_router(cards.router, prefix="/api/cards", tags=["Cards"])
+
+# Asegurar que el directorio uploads existe
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 @app.get("/", tags=["HealthCheck"])
 def read_root():
     """

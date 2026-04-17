@@ -1,0 +1,20 @@
+- `[/]` PHASE 2: Herramientas Clave
+  - `[x]` Limpieza y setup base 
+  - `[/]` Instalar componentes atómicos de Shadcn (button, card, dialog, form, input, label, toast)
+  - `[ ]` Instalar frameworks complementarios (dnd-kit, react-hook-form, zod, axios, tanstack query, etc.)
+- `[ ]` PHASE 3: Autenticación y Cimientos
+  - `[ ]` Instalar next-auth y crear `auth.ts`
+  - `[ ]` Configurar `app/api/auth/[...nextauth]/route.ts`
+  - `[ ]` Crear `middleware.ts` para proteger rutas (/dashboard, /boards)
+  - `[ ]` Configurar `SessionProvider` en el Layout
+  - `[ ]` Diseñar "Dashboard Layout" (app/(protected)/layout.tsx) con Navbar y Sidebar
+- `[ ]` PHASE 4: Flujo y Lógica Funcional
+  - `[ ]` Crear cliente Axios en `lib/api.ts` o `services/` con token de sessión
+  - `[ ]` Vista BoardList en `/boards` (Seleccionar tableros)
+  - `[ ]` Vista BoardDetail en `/boards/[id]` (Columnas y cards con nivel de acceso)
+  - `[ ]` Implementar funcionalidad Drag-and-Drop y backend sync optimista 
+- `[ ]` PHASE 5: UI de Tareas Avanzadas
+  - `[ ]` Sheet/Dialog de Shadcn para editar la Tarea
+  - `[ ]` Formularios React Hook Form + Zod para propiedades de Tarea
+  - `[ ]` Integración de Checklists y Archivos
+  - `[ ]` Comentarios y persistencia de accesos

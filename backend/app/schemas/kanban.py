@@ -16,6 +16,10 @@ class ChecklistItemBase(BaseModel):
 class ChecklistItemCreate(ChecklistItemBase):
     pass
 
+class ChecklistItemUpdate(BaseModel):
+    content: Optional[str] = None
+    is_completed: Optional[bool] = None
+
 class ChecklistItemOut(ChecklistItemBase):
     id: str
     is_completed: bool
