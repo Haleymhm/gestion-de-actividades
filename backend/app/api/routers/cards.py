@@ -11,8 +11,8 @@ from app.models.kanban import Card, ColumnModel
 from app.models.board import Board, BoardMember
 from app.models.task_details import TaskAssignee, Checklist, Comment, Attachment
 from app.api.dependencies.auth import get_current_user
-from app.api.dependencies.kanban import verify_card_edit_access, verify_card_read_access
-from app.schemas.kanban import CardCreate, CardUpdate, CardOut, CoordinateAssignee, ChecklistItemCreate, ChecklistItemOut, ChecklistItemUpdate, CommentCreate, CommentOut, AttachmentOut
+from app.api.dependencies.kanban import verify_card_edit_access, verify_card_read_access, verify_board_ownership
+from app.schemas.kanban import CardCreate, CardUpdate, CardOut, CoordinateAssignee, ChecklistItemCreate, ChecklistItemOut, ChecklistItemUpdate, CommentCreate, CommentUpdate, CommentOut, AttachmentOut
 
 router = APIRouter()
 
@@ -99,6 +99,21 @@ def assign_user_to_card(
         db.refresh(card)
     return card
 
+@router.delete("/{card_id}/assign/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_user_from_card(
+    user_id: str,
+    card: Card = Depends(verify_board_ownership),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> None:
+    existing = db.query(TaskAssignee).filter(
+        TaskAssignee.card_id == card.id, TaskAssignee.user_id == user_id
+    ).first()
+    if not existing:
+        raise HTTPException(404, "El usuario no está asignado a esta actividad")
+    db.delete(existing)
+    db.commit()
+
 @router.post("/{card_id}/comments", response_model=CommentOut)
 def add_comment(
     comment_in: CommentCreate,
@@ -115,6 +130,46 @@ def add_comment(
     db.commit()
     db.refresh(cmt)
     return cmt
+
+@router.put("/{card_id}/comments/{comment_id}", response_model=CommentOut)
+def update_comment(
+    comment_id: str,
+    comment_in: CommentUpdate,
+    card: Card = Depends(verify_card_read_access),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    cmt = db.query(Comment).filter(Comment.id == comment_id, Comment.card_id == card.id).first()
+    if not cmt:
+        raise HTTPException(404, "Comentario no encontrado")
+
+    if current_user.global_role != "admin" and cmt.user_id != current_user.id:
+        raise HTTPException(403, "No puedes editar un comentario que no es tuyo")
+
+    if comment_in.content is not None:
+        cmt.content = comment_in.content
+
+    db.add(cmt)
+    db.commit()
+    db.refresh(cmt)
+    return cmt
+
+@router.delete("/{card_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_comment(
+    comment_id: str,
+    card: Card = Depends(verify_card_read_access),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> None:
+    cmt = db.query(Comment).filter(Comment.id == comment_id, Comment.card_id == card.id).first()
+    if not cmt:
+        raise HTTPException(404, "Comentario no encontrado")
+    
+    if current_user.global_role != "admin" and cmt.user_id != current_user.id:
+        raise HTTPException(403, "No puedes eliminar un comentario que no es tuyo")
+
+    db.delete(cmt)
+    db.commit()
 
 @router.post("/{card_id}/checklists", response_model=ChecklistItemOut)
 def add_checklist_item(
@@ -164,52 +219,27 @@ def delete_checklist_item(
     db.delete(cli)
     db.commit()
 
-@router.delete("/{card_id}/assign/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_user_from_card(
-    user_id: str,
-    card: Card = Depends(verify_card_edit_access),
-    db: Session = Depends(get_db)
-) -> None:
-    existing = db.query(TaskAssignee).filter(
-        TaskAssignee.card_id == card.id, TaskAssignee.user_id == user_id
-    ).first()
-    if not existing:
-        raise HTTPException(404, "El usuario no está asignado a esta actividad")
-    db.delete(existing)
-    db.commit()
-
-@router.delete("/{card_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_comment(
-    comment_id: str,
-    card: Card = Depends(verify_card_edit_access),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-) -> None:
-    cmt = db.query(Comment).filter(Comment.id == comment_id, Comment.card_id == card.id).first()
-    if not cmt:
-        raise HTTPException(404, "Comentario no encontrado")
-    
-    if current_user.global_role != "admin" and cmt.user_id != current_user.id:
-        raise HTTPException(403, "No puedes eliminar un comentario que no es tuyo")
-
-    db.delete(cmt)
-    db.commit()
-
 @router.post("/{card_id}/attachments", response_model=AttachmentOut, status_code=status.HTTP_201_CREATED)
 def upload_attachment(
     card: Card = Depends(verify_card_edit_access),
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ) -> Any:
+    col = db.query(ColumnModel).filter(ColumnModel.id == card.column_id).first()
+    board = db.query(Board).filter(Board.id == col.board_id).first()
+
+    upload_dir = f"uploads/{board.id}/{card.id}"
+    os.makedirs(upload_dir, exist_ok=True)
+
     file_ext = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4()}{file_ext}"
-    file_path = f"uploads/{unique_filename}"
-    
+    file_path = f"{upload_dir}/{unique_filename}"
+
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-        
-    file_url = f"/uploads/{unique_filename}"
-    
+
+    file_url = f"/uploads/{board.id}/{card.id}/{unique_filename}"
+
     att = Attachment(
         card_id=card.id,
         filename=file.filename,
@@ -223,18 +253,21 @@ def upload_attachment(
 @router.delete("/{card_id}/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_attachment(
     attachment_id: str,
-    card: Card = Depends(verify_card_edit_access),
+    card: Card = Depends(verify_board_ownership),
     db: Session = Depends(get_db)
 ) -> None:
     att = db.query(Attachment).filter(Attachment.id == attachment_id, Attachment.card_id == card.id).first()
     if not att:
         raise HTTPException(404, "Archivo adjunto no encontrado")
     
+    col = db.query(ColumnModel).filter(ColumnModel.id == card.column_id).first()
+    board = db.query(Board).filter(Board.id == col.board_id).first()
+
+    file_path = f"uploads/{board.id}/{card.id}/{att.file_url.split('/')[-1]}"
     try:
-        filename = att.file_url.split("/")[-1]
-        os.remove(f"uploads/{filename}")
+        os.remove(file_path)
     except FileNotFoundError:
-        pass 
+        pass
 
     db.delete(att)
     db.commit()

@@ -31,6 +31,9 @@ class CommentBase(BaseModel):
 class CommentCreate(CommentBase):
     pass
 
+class CommentUpdate(BaseModel):
+    content: Optional[str] = None
+
 class CommentOut(CommentBase):
     id: str
     user_id: str

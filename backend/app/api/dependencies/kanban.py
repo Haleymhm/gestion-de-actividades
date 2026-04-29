@@ -95,3 +95,19 @@ def verify_card_read_access(
     if not is_member:
         raise HTTPException(status_code=403, detail="No tienes visión sobre este tablero")
     return card
+
+def verify_board_ownership(
+    card: Card = Depends(get_card_or_404),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Card:
+    """Solo admin o dueño del tablero pueden eliminar archivos adjuntos."""
+    if current_user.global_role == GlobalRole.ADMIN:
+        return card
+
+    column = db.query(ColumnModel).filter(ColumnModel.id == card.column_id).first()
+    board = db.query(Board).filter(Board.id == column.board_id).first()
+
+    if not board or board.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo el administrador o el dueño del tablero puede realizar esta acción")
+    return card
