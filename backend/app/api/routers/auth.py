@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.models.user import User
 from app.schemas.user import UserCreate, UserOut
 from app.schemas.token import Token
+from app.api.dependencies.auth import get_current_user
 
 router = APIRouter()
 
@@ -58,3 +59,9 @@ def register_user(
     db.commit()
     db.refresh(user)
     return user
+
+@router.get("/me", response_model=UserOut)
+def read_current_user(
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    return current_user

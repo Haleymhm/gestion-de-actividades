@@ -8,3 +8,4 @@ export type {
   TaskId,
   TaskStatus,
 } from "./kanban";
+export type { UserOut, Token, LoginInput, RegisterInput } from "./auth";
