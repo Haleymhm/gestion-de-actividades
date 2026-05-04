@@ -16,6 +16,19 @@ from app.schemas.kanban import CardCreate, CardUpdate, CardOut, CoordinateAssign
 
 router = APIRouter()
 
+@router.get("/", response_model=List[CardOut])
+def get_cards(
+    column_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    column = db.query(ColumnModel).filter(ColumnModel.id == column_id).first()
+    if not column:
+        raise HTTPException(404, "Columna no encontrada")
+    
+    cards = db.query(Card).filter(Card.column_id == column_id).order_by(Card.order.asc()).all()
+    return cards
+
 @router.post("/", response_model=CardOut, status_code=status.HTTP_201_CREATED)
 def create_card(
     card_in: CardCreate,

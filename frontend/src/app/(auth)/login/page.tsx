@@ -45,7 +45,7 @@ export default function LoginPage() {
     try {
       setError(null)
       await login(data.email, data.password)
-      router.push("/")
+      router.push("/boards")
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setError(typeof detail === "string" ? detail : "Error al iniciar sesión")

@@ -31,3 +31,33 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+import type { Board, BoardCreate, BoardColumn, Card, CardCreate, CardUpdate } from "@/types/kanban"
+
+export const boardsApi = {
+  list: () => api.get<Board[]>("/api/boards/"),
+  
+  get: (id: string) => api.get<Board>(`/api/boards/${id}`),
+  
+  create: (data: BoardCreate) => api.post<Board>("/api/boards/", data),
+  
+  delete: (id: string) => api.delete(`/api/boards/${id}`),
+}
+
+export const columnsApi = {
+  list: (boardId: string) => api.get<BoardColumn[]>(`/api/columns/?board_id=${boardId}`),
+  
+  create: (boardId: string, title: string) => api.post<BoardColumn>("/api/columns/", { board_id: boardId, title, order: 0 }),
+  
+  delete: (id: string) => api.delete(`/api/columns/${id}`),
+}
+
+export const cardsApi = {
+  list: (columnId: string) => api.get<Card[]>(`/api/cards/?column_id=${columnId}`),
+  
+  create: (data: CardCreate) => api.post<Card>("/api/cards/", data),
+  
+  update: (id: string, data: CardUpdate) => api.patch<Card>(`/api/cards/${id}`, data),
+  
+  delete: (id: string) => api.delete(`/api/cards/${id}`),
+}
