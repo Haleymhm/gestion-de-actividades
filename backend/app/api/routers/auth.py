@@ -65,3 +65,13 @@ def read_current_user(
     current_user: User = Depends(get_current_user),
 ) -> Any:
     return current_user
+
+@router.get("/users", response_model=list[dict])
+def search_users(
+    q: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Busca usuarios por email."""
+    users = db.query(User).filter(User.email.ilike(f"%{q}%")).limit(10).all()
+    return [{"id": u.id, "email": u.email} for u in users]

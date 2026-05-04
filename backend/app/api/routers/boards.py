@@ -91,3 +91,39 @@ def add_board_member(
     db.commit()
     db.refresh(board_member)
     return board_member
+
+@router.get("/{board_id}/members", response_model=List[BoardMemberOut])
+def get_board_members(
+    board: Board = Depends(verify_board_access),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Obtiene los miembros de un tablero."""
+    members = db.query(BoardMember).filter(BoardMember.board_id == board.id).all()
+    
+    result = []
+    for m in members:
+        user = db.query(User).filter(User.id == m.user_id).first()
+        result.append({
+            "id": m.id,
+            "board_id": m.board_id,
+            "user_id": m.user_id,
+            "email": user.email if user else None
+        })
+    
+    return result
+
+@router.delete("/{board_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_board_member(
+    user_id: str,
+    board: Board = Depends(verify_board_owner),
+    db: Session = Depends(get_db),
+) -> None:
+    """Elimina un miembro del tablero."""
+    member = db.query(BoardMember).filter(
+        BoardMember.board_id == board.id,
+        BoardMember.user_id == user_id
+    ).first()
+    if not member:
+        raise HTTPException(404, detail="Miembro no encontrado")
+    db.delete(member)
+    db.commit()

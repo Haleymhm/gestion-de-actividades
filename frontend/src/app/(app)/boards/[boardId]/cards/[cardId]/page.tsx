@@ -16,8 +16,11 @@ import {
   Save,
   AlertCircle,
   CheckCircle2,
+  Upload,
+  Search,
+  X,
 } from "lucide-react";
-import { cardsApi } from "@/lib/api";
+import { cardsApi, boardsApi, authApi } from "@/lib/api";
 import type { Card } from "@/types/kanban";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -39,6 +42,10 @@ export default function CardDetailPage() {
   const [endDate, setEndDate] = useState("");
   const [newChecklist, setNewChecklist] = useState("");
   const [newComment, setNewComment] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<{id: string; email: string}[]>([]);
 
   useEffect(() => {
     fetchCard();
@@ -170,6 +177,69 @@ export default function CardDetailPage() {
     try {
       await cardsApi.addComment(cardId, newComment);
       setNewComment("");
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      await cardsApi.uploadAttachment(cardId, file);
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!confirm("¿Eliminar este archivo?")) return;
+    try {
+      await cardsApi.deleteAttachment(cardId, attachmentId);
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSearchUsers = async (query: string) => {
+    setUserSearch(query);
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchingUsers(true);
+    try {
+      const res = await authApi.searchUsers(query);
+      setSearchResults(res.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  const handleAssignUser = async (userId: string) => {
+    try {
+      await cardsApi.assignUser(cardId, userId);
+      setUserSearch("");
+      setSearchResults([]);
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRemoveUser = async (userId: string) => {
+    if (!confirm("¿Eliminar este usuario de la tarea?")) return;
+    try {
+      await cardsApi.removeUser(cardId, userId);
       fetchCard();
     } catch (e) {
       console.error(e);
@@ -386,17 +456,48 @@ export default function CardDetailPage() {
                   {card?.assignees?.map((user) => (
                     <div
                       key={user.id}
-                      className="flex items-center gap-2 p-2 rounded bg-muted/50"
+                      className="flex items-center gap-2 p-2 rounded bg-muted/50 group"
                     >
                       <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs flex-shrink-0">
                         {user.email?.[0]?.toUpperCase() || "?"}
                       </div>
-                      <span className="text-sm truncate">{user.email}</span>
+                      <span className="text-sm truncate flex-1">{user.email}</span>
+                      <button
+                        onClick={() => handleRemoveUser(user.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-destructive flex-shrink-0"
+                      >
+                        <X className="size-3" />
+                      </button>
                     </div>
                   ))}
                   {(!card?.assignees || card.assignees.length === 0) && (
                     <p className="text-sm text-muted-foreground">Sin asignar</p>
                   )}
+                  <div className="relative">
+                    <div className="flex items-center gap-2">
+                      <Search className="size-4 text-muted-foreground absolute left-2" />
+                      <input
+                        type="text"
+                        value={userSearch}
+                        onChange={(e) => handleSearchUsers(e.target.value)}
+                        placeholder="Buscar usuario..."
+                        className="w-full pl-8 pr-2 py-1 rounded border border-input bg-background text-sm"
+                      />
+                    </div>
+                    {searchResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 border border-border rounded bg-background shadow-lg max-h-40 overflow-y-auto">
+                        {searchResults.map((user) => (
+                          <button
+                            key={user.id}
+                            onClick={() => handleAssignUser(user.id)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                          >
+                            {user.email}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -407,20 +508,44 @@ export default function CardDetailPage() {
                 </label>
                 <div className="space-y-1">
                   {card?.attachments?.map((att) => (
-                    <a
+                    <div
                       key={att.id}
-                      href={att.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 p-2 rounded hover:bg-muted/50"
+                      className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 group"
                     >
-                      <Paperclip className="size-4 flex-shrink-0" />
-                      <span className="text-sm truncate">{att.filename}</span>
-                    </a>
+                      <a
+                        href={att.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 flex-1 min-w-0"
+                      >
+                        <Paperclip className="size-4 flex-shrink-0" />
+                        <span className="text-sm truncate">{att.filename}</span>
+                      </a>
+                      <button
+                        onClick={() => handleDeleteAttachment(att.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-destructive flex-shrink-0"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </div>
                   ))}
                   {(!card?.attachments || card.attachments.length === 0) && (
                     <p className="text-sm text-muted-foreground">Sin archivos</p>
                   )}
+                  <label className="flex items-center gap-2 p-2 rounded border border-dashed border-input cursor-pointer hover:bg-muted/50">
+                    {uploading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Upload className="size-4" />
+                    )}
+                    <span className="text-sm">Subir archivo</span>
+                    <input
+                      type="file"
+                      onChange={handleUploadFile}
+                      className="hidden"
+                      disabled={uploading}
+                    />
+                  </label>
                 </div>
               </div>
             </div>

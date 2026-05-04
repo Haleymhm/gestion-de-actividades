@@ -132,6 +132,7 @@ interface ColumnProps {
   cards: Card[];
   cardStatuses: Record<string, CardStatus>;
   onDeleteColumn: (columnId: string) => void;
+  onUpdateColumn: (columnId: string, title: string) => void;
   onCreateCard: (columnId: string, e: React.FormEvent) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
   onNavigate: (cardId: string) => void;
@@ -145,6 +146,7 @@ function Column({
   cards,
   cardStatuses,
   onDeleteColumn,
+  onUpdateColumn,
   onCreateCard,
   onDeleteCard,
   onNavigate,
@@ -152,6 +154,10 @@ function Column({
   onNewCardTitleChange,
   isCreating,
 }: ColumnProps) {
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [title, setTitle] = useState(column.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const {
     attributes,
     listeners,
@@ -170,6 +176,23 @@ function Column({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  useEffect(() => {
+    setTitle(column.title);
+  }, [column.title]);
+
+  useEffect(() => {
+    if (editingTitle && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [editingTitle]);
+
+  const handleTitleSubmit = () => {
+    setEditingTitle(false);
+    if (title !== column.title) {
+      onUpdateColumn(column.id, title);
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -185,7 +208,24 @@ function Column({
           >
             <GripVertical className="size-3" />
           </button>
-          <h3 className="font-semibold truncate">{column.title}</h3>
+          {editingTitle ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleSubmit}
+              onKeyDown={(e) => e.key === "Enter" && handleTitleSubmit()}
+              className="flex-1 px-1 py-0.5 text-sm font-semibold bg-background border rounded"
+            />
+          ) : (
+            <h3
+              onDoubleClick={() => setEditingTitle(true)}
+              className="font-semibold truncate cursor-pointer hover:bg-muted px-1 rounded"
+            >
+              {column.title}
+            </h3>
+          )}
           <span className="text-xs text-muted-foreground ml-1">
             ({cards.length})
           </span>
@@ -332,6 +372,16 @@ export default function BoardDetailPage() {
       const newCardsMap = { ...cardsByColumn };
       delete newCardsMap[columnId];
       setCardsByColumn(newCardsMap);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdateColumn = async (columnId: string, title: string) => {
+    if (!title.trim()) return;
+    try {
+      await columnsApi.update(columnId, { title });
+      setColumns(columns.map(c => c.id === columnId ? { ...c, title } : c));
     } catch (e) {
       console.error(e);
     }
@@ -544,6 +594,7 @@ export default function BoardDetailPage() {
                   cards={cardsByColumn[column.id] || []}
                   cardStatuses={cardStatuses}
                   onDeleteColumn={handleDeleteColumn}
+                  onUpdateColumn={handleUpdateColumn}
                   onCreateCard={handleCreateCard}
                   onDeleteCard={handleDeleteCard}
                   onNavigate={handleNavigate}

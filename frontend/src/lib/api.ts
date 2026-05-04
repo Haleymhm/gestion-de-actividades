@@ -34,6 +34,11 @@ api.interceptors.response.use(
 
 import type { Board, BoardCreate, BoardColumn, Card, CardCreate, CardUpdate } from "@/types/kanban"
 
+export const authApi = {
+  searchUsers: (q: string) => 
+    api.get<{id: string; email: string}[]>(`/api/auth/users?q=${encodeURIComponent(q)}`),
+}
+
 export const boardsApi = {
   list: () => api.get<Board[]>("/api/boards/"),
   
@@ -42,6 +47,14 @@ export const boardsApi = {
   create: (data: BoardCreate) => api.post<Board>("/api/boards/", data),
   
   delete: (id: string) => api.delete(`/api/boards/${id}`),
+  
+  getMembers: (boardId: string) => api.get<{id: string; user_id: string; email: string}[]>(`/api/boards/${boardId}/members`),
+  
+  addMember: (boardId: string, userId: string) => 
+    api.post(`/api/boards/${boardId}/members`, { user_id: userId }),
+  
+  removeMember: (boardId: string, userId: string) => 
+    api.delete(`/api/boards/${boardId}/members/${userId}`),
 }
 
 export const columnsApi = {
@@ -76,4 +89,21 @@ export const cardsApi = {
 
   deleteChecklistItem: (cardId: string, checkId: string) => 
     api.delete(`/api/cards/${cardId}/checklists/${checkId}`),
+
+  uploadAttachment: (cardId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post(`/api/cards/${cardId}/attachments`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+
+  deleteAttachment: (cardId: string, attachmentId: string) => 
+    api.delete(`/api/cards/${cardId}/attachments/${attachmentId}`),
+
+  assignUser: (cardId: string, userId: string) => 
+    api.post(`/api/cards/${cardId}/assign`, { user_id: userId }),
+
+  removeUser: (cardId: string, userId: string) => 
+    api.delete(`/api/cards/${cardId}/assign/${userId}`),
 }
