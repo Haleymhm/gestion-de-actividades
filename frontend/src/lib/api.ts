@@ -49,15 +49,31 @@ export const columnsApi = {
   
   create: (boardId: string, title: string) => api.post<BoardColumn>("/api/columns/", { board_id: boardId, title, order: 0 }),
   
+  update: (id: string, data: { title?: string; order?: number }) => api.put<BoardColumn>(`/api/columns/${id}`, data),
+  
   delete: (id: string) => api.delete(`/api/columns/${id}`),
 }
 
 export const cardsApi = {
   list: (columnId: string) => api.get<Card[]>(`/api/cards/?column_id=${columnId}`),
   
+  get: (id: string) => api.get<Card>(`/api/cards/${id}`),
+  
   create: (data: CardCreate) => api.post<Card>("/api/cards/", data),
   
   update: (id: string, data: CardUpdate) => api.patch<Card>(`/api/cards/${id}`, data),
   
   delete: (id: string) => api.delete(`/api/cards/${id}`),
+
+  addComment: (cardId: string, content: string) => 
+    api.post(`/api/cards/${cardId}/comments`, { content }),
+
+  addChecklistItem: (cardId: string, content: string) => 
+    api.post(`/api/cards/${cardId}/checklists`, { content }),
+
+  updateChecklistItem: (cardId: string, checkId: string, data: { is_completed: boolean }) => 
+    api.put(`/api/cards/${cardId}/checklists/${checkId}`, data),
+
+  deleteChecklistItem: (cardId: string, checkId: string) => 
+    api.delete(`/api/cards/${cardId}/checklists/${checkId}`),
 }

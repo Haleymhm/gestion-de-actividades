@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class TaskAssigneeOut(BaseModel):
     id: str
     user_id: str
+    email: Optional[str] = None
     model_config = {"from_attributes": True}
 
 class CoordinateAssignee(BaseModel):
@@ -79,6 +80,10 @@ class ColumnBase(BaseModel):
 
 class ColumnCreate(ColumnBase):
     board_id: str
+
+class ColumnUpdate(BaseModel):
+    title: Optional[str] = None
+    order: Optional[int] = None
 
 class ColumnOut(ColumnBase):
     id: str

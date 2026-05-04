@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -8,7 +8,7 @@ from app.models.board import Board, BoardMember
 from app.models.kanban import ColumnModel
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.kanban import verify_column_access
-from app.schemas.kanban import ColumnCreate, ColumnOut
+from app.schemas.kanban import ColumnCreate, ColumnOut, ColumnUpdate
 
 router = APIRouter()
 
@@ -62,3 +62,16 @@ def delete_column(
 ) -> None:
     db.delete(column)
     db.commit()
+
+@router.put("/{column_id}", response_model=ColumnOut)
+def update_column(
+    column_in: ColumnUpdate,
+    column: ColumnModel = Depends(verify_column_access),
+    db: Session = Depends(get_db),
+) -> Any:
+    for field, value in column_in.model_dump(exclude_unset=True).items():
+        setattr(column, field, value)
+    db.add(column)
+    db.commit()
+    db.refresh(column)
+    return column
