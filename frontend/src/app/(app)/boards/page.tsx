@@ -2,12 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, LogOut, Trash2, Loader2 } from "lucide-react";
-import { boardsApi } from "@/lib/api";
+import { Plus, Loader2, Layout, Users, Calendar, Trash2 } from "lucide-react";
+import { boardsApi, columnsApi, cardsApi } from "@/lib/api";
+import { UserMenu } from "@/components/user-menu";
 import type { Board } from "@/types/kanban";
 
+interface BoardWithStats extends Board {
+  columnsCount?: number;
+  cardsCount?: number;
+}
+
 export default function BoardsPage() {
-  const [boards, setBoards] = useState<Board[]>([]);
+  const [boards, setBoards] = useState<BoardWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -20,7 +26,27 @@ export default function BoardsPage() {
   const fetchBoards = async () => {
     try {
       const res = await boardsApi.list();
-      setBoards(res.data);
+      const boardsWithStats: BoardWithStats[] = [];
+
+      for (const board of res.data) {
+        try {
+          const colsRes = await columnsApi.list(board.id);
+          let cardsCount = 0;
+          for (const col of colsRes.data) {
+            const cardsRes = await cardsApi.list(col.id);
+            cardsCount += cardsRes.data.length;
+          }
+          boardsWithStats.push({
+            ...board,
+            columnsCount: colsRes.data.length,
+            cardsCount,
+          });
+        } catch {
+          boardsWithStats.push({ ...board, columnsCount: 0, cardsCount: 0 });
+        }
+      }
+
+      setBoards(boardsWithStats);
     } catch (e) {
       console.error(e);
     } finally {
@@ -34,7 +60,7 @@ export default function BoardsPage() {
     setCreating(true);
     try {
       const res = await boardsApi.create({ title: newTitle });
-      setBoards([...boards, res.data]);
+      setBoards([...boards, { ...res.data, columnsCount: 0, cardsCount: 0 }]);
       setNewTitle("");
     } catch (e) {
       console.error(e);
@@ -64,21 +90,23 @@ export default function BoardsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border px-6 py-4 flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-tight">Gestión de actividades</h1>
-        <button
-          onClick={() => {
-            localStorage.removeItem("kanban_access_token");
-            router.push("/");
-          }}
-          className="p-2 rounded-md hover:bg-muted"
-        >
-          <LogOut className="size-4" />
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Layout className="size-5 text-primary" />
+          </div>
+          <h1 className="text-lg font-semibold tracking-tight">Gestión de actividades</h1>
+        </div>
+        <UserMenu />
       </header>
 
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold tracking-tight">Tus Tableros</h2>
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Tus Tableros</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {boards.length} tablero{boards.length !== 1 ? "s" : ""} en total
+            </p>
+          </div>
         </div>
 
         <form onSubmit={handleCreate} className="mb-8 flex gap-2">
@@ -87,12 +115,12 @@ export default function BoardsPage() {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Nombre del nuevo tablero..."
-            className="flex-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
+            className="flex-1 px-4 py-3 rounded-lg border border-input bg-background text-sm shadow-sm"
           />
           <button
             type="submit"
             disabled={creating || !newTitle.trim()}
-            className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+            className="px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-medium shadow-sm transition-colors"
           >
             {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
             Crear
@@ -100,29 +128,48 @@ export default function BoardsPage() {
         </form>
 
         {boards.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            No tienes tableros aún. Crea uno para comenzar.
+          <div className="text-center py-16 px-4 rounded-xl border-2 border-dashed border-border">
+            <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+              <Layout className="size-6 text-muted-foreground" />
+            </div>
+            <p className="text-muted-foreground">No tienes tableros aún</p>
+            <p className="text-sm text-muted-foreground mt-1">Crea uno para comenzar a organizar tus tareas</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {boards.map((board) => (
               <div
                 key={board.id}
-                className="group relative p-4 rounded-lg border border-border bg-card hover:border-primary/50 transition-colors cursor-pointer"
+                className="group relative p-5 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
                 onClick={() => router.push(`/boards/${board.id}`)}
               >
-                <div className="pr-8">
-                  <h3 className="font-semibold truncate">{board.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Dueño: {board.owner_id.slice(0, 8)}...
-                  </p>
+                <div className="pr-10">
+                  <h3 className="font-semibold text-lg truncate">{board.title}</h3>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Layout className="size-3" />
+                      {board.columnsCount} columna{board.columnsCount !== 1 ? "s" : ""}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="size-3" />
+                      {board.cardsCount} tarjeta{board.cardsCount !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                      <Users className="size-3 text-primary" />
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      Dueño: {board.owner_id.slice(0, 6)}...
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDelete(board.id);
                   }}
-                  className="absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive transition-all"
+                  className="absolute top-4 right-4 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive transition-all"
                 >
                   <Trash2 className="size-4" />
                 </button>

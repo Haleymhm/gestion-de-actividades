@@ -1,7 +1,6 @@
 import axios from "axios";
 
-const baseURL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
+const baseURL = "http://localhost:8000";
 
 export const api = axios.create({
   baseURL,
@@ -37,6 +36,11 @@ import type { Board, BoardCreate, BoardColumn, Card, CardCreate, CardUpdate } fr
 export const authApi = {
   searchUsers: (q: string) => 
     api.get<{id: string; email: string}[]>(`/api/auth/users?q=${encodeURIComponent(q)}`),
+  
+  updateUsername: (username: string) => 
+    api.put(`/api/auth/username?username=${encodeURIComponent(username)}`),
+  
+  me: () => api.get<{id: string; email: string; username: string | null}>("/api/auth/me"),
 }
 
 export const boardsApi = {
@@ -74,7 +78,7 @@ export const cardsApi = {
   
   create: (data: CardCreate) => api.post<Card>("/api/cards/", data),
   
-  update: (id: string, data: CardUpdate) => api.patch<Card>(`/api/cards/${id}`, data),
+  update: (id: string, data: CardUpdate) => api.put<Card>(`/api/cards/${id}`, data),
   
   delete: (id: string) => api.delete(`/api/cards/${id}`),
 

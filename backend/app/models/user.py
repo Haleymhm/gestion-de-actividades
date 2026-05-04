@@ -13,6 +13,7 @@ class User(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=False)
     global_role = Column(Enum(GlobalRole), default=GlobalRole.STANDARD)
 

@@ -1,0 +1,372 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  Loader2,
+  Trash2,
+  Calendar,
+  User,
+  Paperclip,
+  CheckSquare,
+  MessageSquare,
+  Plus,
+  Check,
+  AlertCircle,
+  CheckCircle2,
+  Upload,
+  X,
+} from "lucide-react";
+import { cardsApi } from "@/lib/api";
+import type { Card } from "@/types/kanban";
+
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+interface CardModalProps {
+  cardId: string;
+  boardId: string;
+  open: boolean;
+  onClose: () => void;
+}
+
+export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
+  const [card, setCard] = useState<Card | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [newChecklist, setNewChecklist] = useState("");
+  const [newComment, setNewComment] = useState("");
+
+  useEffect(() => {
+    if (open && cardId) {
+      fetchCard();
+    }
+  }, [open, cardId]);
+
+  const fetchCard = async () => {
+    try {
+      const res = await cardsApi.get(cardId);
+      setCard(res.data);
+      setTitle(res.data.title || "");
+      setDescription(res.data.description || "");
+      setStartDate(res.data.start_date || "");
+      setEndDate(res.data.end_date || "");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveCard = useCallback(async () => {
+    setSaveStatus("saving");
+    try {
+      await cardsApi.update(cardId, {
+        title,
+        description,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+      });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch (e) {
+      console.error(e);
+      setSaveStatus("error");
+    }
+  }, [cardId, title, description, startDate, endDate]);
+
+  const handleChange = (setter: (v: string) => void, value: string, debounce = true) => {
+    setter(value);
+    if (debounce) {
+      setTimeout(saveCard, 500);
+    }
+  };
+
+  const handleAddChecklist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChecklist.trim()) return;
+    try {
+      await cardsApi.addChecklistItem(cardId, newChecklist);
+      setNewChecklist("");
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleChecklist = async (checkId: string, isCompleted: boolean) => {
+    try {
+      await cardsApi.updateChecklistItem(cardId, checkId, { is_completed: !isCompleted });
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteChecklistItem = async (checkId: string) => {
+    try {
+      await cardsApi.deleteChecklistItem(cardId, checkId);
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    try {
+      await cardsApi.addComment(cardId, newComment);
+      setNewComment("");
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("¿Eliminar esta tarjeta?")) return;
+    try {
+      await cardsApi.delete(cardId);
+      onClose();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  if (!open) return null;
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <Loader2 className="h-8 w-8 animate-spin text-white" />
+      </div>
+    );
+  }
+
+  const completedChecklists = card?.checklists?.filter((c) => c.is_completed).length || 0;
+  const totalChecklists = card?.checklists?.length || 0;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => handleChange(setTitle, e.target.value)}
+            className="flex-1 text-2xl font-bold bg-transparent border-none outline-none focus:ring-0 px-0"
+            placeholder="Título de la tarea"
+          />
+          <div className="flex items-center gap-2 ml-4">
+            {saveStatus === "saving" && (
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            )}
+            {saveStatus === "saved" && (
+              <CheckCircle2 className="size-4 text-green-500" />
+            )}
+            {saveStatus === "error" && (
+              <AlertCircle className="size-4 text-destructive" />
+            )}
+            <button
+              onClick={handleDelete}
+              className="p-2 rounded-md hover:bg-destructive/10 text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-md hover:bg-muted"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 space-y-6">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                Descripción
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onBlur={saveCard}
+                rows={4}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background resize-none"
+                placeholder="Agregar una descripción..."
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                Checklists ({completedChecklists}/{totalChecklists})
+              </label>
+              {totalChecklists > 0 && (
+                <div className="mb-3">
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{
+                        width: `${(completedChecklists / totalChecklists) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2">
+                {card?.checklists?.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 group"
+                  >
+                    <button
+                      onClick={() => handleToggleChecklist(item.id, item.is_completed)}
+                      className={`p-1 rounded flex-shrink-0 ${
+                        item.is_completed
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-border"
+                      }`}
+                    >
+                      {item.is_completed && <Check className="size-3" />}
+                    </button>
+                    <span
+                      className={`flex-1 ${
+                        item.is_completed ? "line-through text-muted-foreground" : ""
+                      }`}
+                    >
+                      {item.content}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteChecklistItem(item.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-destructive flex-shrink-0"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={handleAddChecklist} className="mt-3 flex gap-2">
+                <input
+                  type="text"
+                  value={newChecklist}
+                  onChange={(e) => setNewChecklist(e.target.value)}
+                  placeholder="Nuevo elemento..."
+                  className="flex-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={!newChecklist.trim()}
+                  className="px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <Plus className="size-4" />
+                </button>
+              </form>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                Comentarios
+              </label>
+              <div className="space-y-3 mb-3">
+                {card?.comments?.map((comment) => (
+                  <div key={comment.id} className="p-3 rounded bg-muted/50">
+                    <div className="text-xs text-muted-foreground mb-1">
+                      {comment.user_id.slice(0, 8)} •{" "}
+                      {new Date(comment.created_at).toLocaleDateString()}
+                    </div>
+                    <p className="text-sm">{comment.content}</p>
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={handleAddComment} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Escribir un comentario..."
+                  className="flex-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={!newComment.trim()}
+                  className="px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <MessageSquare className="size-4" />
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Calendar className="size-4" />
+                Fechas
+              </label>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground w-16 flex-shrink-0">
+                    Inicio:
+                  </span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    onBlur={saveCard}
+                    className="flex-1 px-2 py-1 rounded border border-input bg-background text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground w-16 flex-shrink-0">
+                    Fin:
+                  </span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    onBlur={saveCard}
+                    className="flex-1 px-2 py-1 rounded border border-input bg-background text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <User className="size-4" />
+                Asignados
+              </label>
+              <div className="space-y-1">
+                {card?.assignees?.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-2 p-2 rounded bg-muted/50"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs flex-shrink-0">
+                      {user.email?.[0]?.toUpperCase() || "?"}
+                    </div>
+                    <span className="text-sm truncate">{user.email}</span>
+                  </div>
+                ))}
+                {(!card?.assignees || card.assignees.length === 0) && (
+                  <p className="text-sm text-muted-foreground">Sin asignar</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

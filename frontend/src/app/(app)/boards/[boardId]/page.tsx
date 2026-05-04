@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
+  closestCenter,
   closestCorners,
   KeyboardSensor,
   PointerSensor,
@@ -31,8 +32,13 @@ import {
   Save,
   AlertCircle,
   CheckCircle2,
+  Users,
+  UserPlus,
+  Search,
+  X,
 } from "lucide-react";
-import { boardsApi, columnsApi, cardsApi } from "@/lib/api";
+import { boardsApi, columnsApi, cardsApi, authApi } from "@/lib/api";
+import { CardModal } from "@/components/card-modal";
 import type { Board, BoardColumn, Card } from "@/types/kanban";
 
 interface CardStatus {
@@ -298,9 +304,16 @@ export default function BoardDetailPage() {
   const [newCardTitle, setNewCardTitle] = useState<Record<string, string>>({});
   const [creatingCard, setCreatingCard] = useState<Record<string, boolean>>({});
 
+  const [showMembers, setShowMembers] = useState(false);
+  const [members, setMembers] = useState<{id: string; user_id: string; email: string}[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<{id: string; email: string}[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"card" | "column" | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -317,12 +330,14 @@ export default function BoardDetailPage() {
 
   const fetchBoardData = async () => {
     try {
-      const [boardRes, columnsRes] = await Promise.all([
+      const [boardRes, columnsRes, membersRes] = await Promise.all([
         boardsApi.get(boardId),
         columnsApi.list(boardId),
+        boardsApi.getMembers(boardId),
       ]);
       setBoard(boardRes.data);
       setColumns(columnsRes.data);
+      setMembers(membersRes.data);
 
       const cardsPromises = columnsRes.data.map((col) => cardsApi.list(col.id));
       const cardsResults = await Promise.all(cardsPromises);
@@ -387,6 +402,46 @@ export default function BoardDetailPage() {
     }
   };
 
+  const handleSearchUsers = async (query: string) => {
+    setUserSearch(query);
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchingUsers(true);
+    try {
+      const res = await authApi.searchUsers(query);
+      const existingIds = [board?.owner_id, ...members.map(m => m.user_id)];
+      setSearchResults(res.data.filter(u => !existingIds.includes(u.id)));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  const handleAddMember = async (userId: string) => {
+    try {
+      await boardsApi.addMember(boardId, userId);
+      setMembers([...members, { id: "", user_id: userId, email: searchResults.find(u => u.id === userId)?.email || "" }]);
+      setUserSearch("");
+      setSearchResults([]);
+      setShowMembers(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!confirm("¿Eliminar este miembro del tablero?")) return;
+    try {
+      await boardsApi.removeMember(boardId, userId);
+      setMembers(members.filter(m => m.user_id !== userId));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleCreateCard = async (columnId: string, e: React.FormEvent) => {
     e.preventDefault();
     const title = newCardTitle[columnId]?.trim();
@@ -424,7 +479,12 @@ export default function BoardDetailPage() {
   };
 
   const handleNavigate = (cardId: string) => {
-    router.push(`/boards/${boardId}/cards/${cardId}`);
+    setEditingCardId(cardId);
+  };
+
+  const handleCloseCardModal = () => {
+    setEditingCardId(null);
+    fetchBoardData();
   };
 
   const findColumn = (id: string): string | null => {
@@ -486,17 +546,96 @@ export default function BoardDetailPage() {
     setActiveType(null);
     setOverId(null);
 
-    if (!over) return;
+    if (!over) {
+      console.log("No hay over - drag cancelado");
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
-
-    if (activeId === overId) return;
-
+    
+    // Obtener la columna de origen
     const activeColumnId = findColumn(activeId);
-    const overColumnId = findColumn(overId);
+    if (!activeColumnId) return;
 
-    if (activeColumnId === overColumnId && activeColumnId) {
+    // Determinar columna de destino
+    let overColumnId: string | null = null;
+    
+    // 1. Si overId es un ID de columna conocido
+    for (const col of columns) {
+      if (col.id === overId) {
+        overColumnId = col.id;
+        console.log("Drop sobre columna directa");
+        break;
+      }
+    }
+    
+    // 2. Si overId es una tarjeta, buscar su columna
+    if (!overColumnId) {
+      for (const colId of Object.keys(cardsByColumn)) {
+        const cards = cardsByColumn[colId];
+        if (cards?.some((c) => c.id === overId)) {
+          overColumnId = colId;
+          console.log("Drop sobre tarjeta, columna:", colId);
+          break;
+        }
+      }
+    }
+
+    console.log("onDragEnd:", { activeId, overId, activeColumnId, overColumnId });
+
+    if (!overColumnId) {
+      console.log("No se pudo encontrar columna destino");
+      return;
+    }
+
+    // Si es la misma columna y misma tarjeta, no hacer nada
+    if (activeColumnId === overColumnId && activeId === overId) {
+      console.log("Misma tarjeta, no hacer nada");
+      return;
+    }
+
+    // Si es diferente columna, mover
+    if (activeColumnId !== overColumnId) {
+      console.log("Moviendo a columna:", overColumnId);
+      
+      setCardsByColumn((prev) => {
+        const activeCards = [...(prev[activeColumnId] || [])];
+        const overCards = [...(prev[overColumnId] || [])];
+        
+        const activeIndex = activeCards.findIndex((c) => c.id === activeId);
+        if (activeIndex === -1) return prev;
+        
+        const [movedCard] = activeCards.splice(activeIndex, 1);
+        movedCard.column_id = overColumnId;
+        overCards.push(movedCard);
+        
+        return {
+          ...prev,
+          [activeColumnId]: activeCards,
+          [overColumnId]: overCards,
+        };
+      });
+
+      updateCardStatus(activeId, { saving: true, error: false });
+
+      try {
+        console.log("Llamando API update:", activeId, { column_id: overColumnId });
+        const response = await cardsApi.update(activeId, {
+          column_id: overColumnId,
+        });
+        console.log("API response:", response.status, response.data);
+        updateCardStatus(activeId, { saving: false, error: false });
+      } catch (e: any) {
+        console.error("Error moving card:", e.response?.data || e.message || e);
+        updateCardStatus(activeId, { saving: false, error: true });
+        fetchBoardData();
+      }
+      return;
+    }
+
+    // Misma columna pero diferente tarjeta - reordenar
+    if (activeColumnId === overColumnId && activeId !== overId) {
       const cards = [...(cardsByColumn[activeColumnId] || [])];
       const activeIndex = cards.findIndex((c) => c.id === activeId);
       const overIndex = cards.findIndex((c) => c.id === overId);
@@ -519,23 +658,10 @@ export default function BoardDetailPage() {
           });
           updateCardStatus(activeId, { saving: false, error: false });
         } catch (e) {
-          console.error("Error updating card order:", e);
+          console.error("Error reorder:", e);
           updateCardStatus(activeId, { saving: false, error: true });
           fetchBoardData();
         }
-      }
-    } else if (activeColumnId && overColumnId) {
-      updateCardStatus(activeId, { saving: true, error: false });
-
-      try {
-        await cardsApi.update(activeId, {
-          column_id: overColumnId,
-        });
-        updateCardStatus(activeId, { saving: false, error: false });
-      } catch (e) {
-        console.error("Error moving card to different column:", e);
-        updateCardStatus(activeId, { saving: false, error: true });
-        fetchBoardData();
       }
     }
   };
@@ -561,26 +687,108 @@ export default function BoardDetailPage() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push("/boards")}
-            className="p-2 rounded-md hover:bg-muted"
+            className="p-2 rounded-md hover:bg-muted transition-colors"
           >
             <ArrowLeft className="size-4" />
           </button>
           <h1 className="text-lg font-semibold tracking-tight">{board?.title}</h1>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowMembers(!showMembers)}
+            className={`p-2 rounded-md hover:bg-muted transition-colors relative ${
+              showMembers ? "bg-muted" : ""
+            }`}
+          >
+            <Users className="size-4" />
+            {members.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                {members.length}
+              </span>
+            )}
+          </button>
+        </div>
       </header>
 
+      {showMembers && (
+        <div className="border-b border-border bg-muted/30 p-4">
+          <div className="max-w-md">
+            <h3 className="font-medium text-sm mb-3 flex items-center gap-2">
+              <Users className="size-4" />
+              Colaboradores del tablero
+            </h3>
+            <div className="space-y-2 mb-3">
+              <div className="flex items-center gap-2 p-2 rounded bg-background text-sm">
+                <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                  {board?.owner_id?.[0]?.toUpperCase() || "?"}
+                </div>
+                <span className="flex-1">Dueño (tú)</span>
+              </div>
+              {members.map((member) => (
+                <div
+                  key={member.user_id}
+                  className="flex items-center gap-2 p-2 rounded bg-background text-sm group"
+                >
+                  <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs">
+                    {member.email?.[0]?.toUpperCase() || "?"}
+                  </div>
+                  <span className="flex-1 truncate">{member.email}</span>
+                  <button
+                    onClick={() => handleRemoveMember(member.user_id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-destructive"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+              {members.length === 0 && (
+                <p className="text-sm text-muted-foreground">Sin colaboradores</p>
+              )}
+            </div>
+            <div className="relative">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => handleSearchUsers(e.target.value)}
+                    placeholder="Buscar usuario por email..."
+                    className="w-full pl-9 pr-3 py-2 rounded-md border border-input bg-background text-sm"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowMembers(false)}
+                  className="p-2 rounded-md hover:bg-muted"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              {searchResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 border border-border rounded-md bg-background shadow-lg max-h-40 overflow-y-auto">
+                  {searchResults.map((user) => (
+                    <button
+                      key={user.id}
+                      onClick={() => handleAddMember(user.id)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                    >
+                      <UserPlus className="size-4" />
+                      {user.email}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="p-6 overflow-x-auto">
-        <DndContext
+<DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={closestCenter}
           onDragStart={onDragStart}
-          onDragOver={onDragOver}
           onDragEnd={onDragEnd}
-          measuring={{
-            droppable: {
-              strategy: MeasuringStrategy.Always,
-            },
-          }}
         >
           <SortableContext
             items={columns.map((c) => c.id)}
@@ -636,6 +844,12 @@ export default function BoardDetailPage() {
           </form>
         </div>
       </main>
+      <CardModal
+        cardId={editingCardId || ""}
+        boardId={boardId}
+        open={!!editingCardId}
+        onClose={handleCloseCardModal}
+      />
     </div>
   );
 }

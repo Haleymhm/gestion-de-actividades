@@ -101,9 +101,40 @@ def verify_board_ownership(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Card:
-    """Solo admin o dueño del tablero pueden eliminar archivos adjuntos."""
+    """Solo admin o Dueño del tablero pueden eliminar archivos adjuntos."""
     if current_user.global_role == GlobalRole.ADMIN:
         return card
+
+    column = db.query(ColumnModel).filter(ColumnModel.id == card.column_id).first()
+    board = db.query(Board).filter(Board.id == column.board_id).first()
+
+    if not board or board.owner_id != current_user.id:
+        raise HTTPException(403, detail="Solo el administrador o el Dueño del tablero puede realizar esta acción")
+    return card
+
+def verify_card_move_access(
+    card: Card = Depends(get_card_or_404),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Card:
+    """Permite mover tarjetas - solo requiere ser miembro del tablero o owner"""
+    if current_user.global_role == GlobalRole.ADMIN:
+        return card
+
+    column = db.query(ColumnModel).filter(ColumnModel.id == card.column_id).first()
+    board = db.query(Board).filter(Board.id == column.board_id).first() if column else None
+    
+    if board and board.owner_id == current_user.id:
+        return card
+
+    is_member = db.query(BoardMember).filter(
+        BoardMember.board_id == board.id,
+        BoardMember.user_id == current_user.id
+    ).first()
+    
+    if not is_member:
+        raise HTTPException(403, detail="No tienes acceso a este tablero")
+    return card
 
     column = db.query(ColumnModel).filter(ColumnModel.id == card.column_id).first()
     board = db.query(Board).filter(Board.id == column.board_id).first()

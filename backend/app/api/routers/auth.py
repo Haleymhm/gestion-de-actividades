@@ -75,3 +75,23 @@ def search_users(
     """Busca usuarios por email."""
     users = db.query(User).filter(User.email.ilike(f"%{q}%")).limit(10).all()
     return [{"id": u.id, "email": u.email} for u in users]
+
+@router.put("/username", response_model=UserOut)
+def update_username(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Actualiza el username del usuario."""
+    existing = db.query(User).filter(
+        User.username == username, 
+        User.id != current_user.id
+    ).first()
+    if existing:
+        raise HTTPException(400, detail="Este username ya está en uso")
+    
+    current_user.username = username
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user

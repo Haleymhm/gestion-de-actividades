@@ -11,7 +11,7 @@ from app.models.kanban import Card, ColumnModel
 from app.models.board import Board, BoardMember
 from app.models.task_details import TaskAssignee, Checklist, Comment, Attachment
 from app.api.dependencies.auth import get_current_user
-from app.api.dependencies.kanban import verify_card_edit_access, verify_card_read_access, verify_board_ownership
+from app.api.dependencies.kanban import verify_card_edit_access, verify_card_read_access, verify_board_ownership, verify_card_move_access
 from app.schemas.kanban import CardCreate, CardUpdate, CardOut, CoordinateAssignee, ChecklistItemCreate, ChecklistItemOut, ChecklistItemUpdate, CommentCreate, CommentUpdate, CommentOut, AttachmentOut
 
 router = APIRouter()
@@ -74,7 +74,7 @@ def create_card(
 @router.put("/{card_id}", response_model=CardOut)
 def update_card(
     card_in: CardUpdate,
-    card: Card = Depends(verify_card_edit_access),
+    card: Card = Depends(verify_card_move_access),
     db: Session = Depends(get_db)
 ) -> Any:
     """
