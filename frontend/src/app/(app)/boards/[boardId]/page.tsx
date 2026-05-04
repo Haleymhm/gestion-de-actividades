@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   DndContext,
@@ -13,6 +13,7 @@ import {
   DragStartEvent,
   DragEndEvent,
   DragOverEvent,
+  MeasuringStrategy,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -21,18 +22,39 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowLeft, Plus, Loader2, Trash2, GripVertical } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Loader2,
+  Trash2,
+  GripVertical,
+  Save,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
 import { boardsApi, columnsApi, cardsApi } from "@/lib/api";
 import type { Board, BoardColumn, Card } from "@/types/kanban";
+
+interface CardStatus {
+  saving: boolean;
+  error: boolean;
+}
 
 interface SortableCardProps {
   card: Card;
   columnId: string;
+  status: CardStatus;
   onDelete: (columnId: string, cardId: string) => void;
   onNavigate: (cardId: string) => void;
 }
 
-function SortableCard({ card, columnId, onDelete, onNavigate }: SortableCardProps) {
+function SortableCard({
+  card,
+  columnId,
+  status,
+  onDelete,
+  onNavigate,
+}: SortableCardProps) {
   const {
     attributes,
     listeners,
@@ -40,42 +62,53 @@ function SortableCard({ card, columnId, onDelete, onNavigate }: SortableCardProp
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: card.id, data: { type: "card", columnId } });
+  } = useSortable({
+    id: card.id,
+    data: { type: "card", columnId },
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+    transition: isDragging ? "none" : transition,
+    opacity: isDragging ? 0.4 : 1,
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="group p-2 rounded bg-background border border-border hover:border-primary/50 transition-colors cursor-pointer"
+      className="group relative p-2 rounded bg-background border border-border hover:border-primary/50 transition-all cursor-pointer"
       onClick={() => onNavigate(card.id)}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-1 flex-1">
+        <div className="flex items-center gap-1 flex-1 min-w-0">
           <button
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-0.5 text-muted-foreground hover:text-foreground"
+            className="cursor-grab active:cursor-grabbing p-0.5 text-muted-foreground hover:text-foreground flex-shrink-0"
             onClick={(e) => e.stopPropagation()}
           >
             <GripVertical className="size-3" />
           </button>
-          <span className="text-sm">{card.title}</span>
+          <span className="text-sm truncate">{card.title}</span>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(columnId, card.id);
-          }}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-destructive"
-        >
-          <Trash2 className="size-3" />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {status.saving && (
+            <Loader2 className="size-3 animate-spin text-muted-foreground" />
+          )}
+          {status.error && (
+            <AlertCircle className="size-3 text-destructive" />
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(columnId, card.id);
+            }}
+            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-destructive"
+          >
+            <Trash2 className="size-3" />
+          </button>
+        </div>
       </div>
       {card.description && (
         <p className="text-xs text-muted-foreground mt-1 line-clamp-2 ml-4">
@@ -86,14 +119,10 @@ function SortableCard({ card, columnId, onDelete, onNavigate }: SortableCardProp
   );
 }
 
-interface CardOverlayProps {
-  card: Card;
-}
-
-function CardOverlay({ card }: CardOverlayProps) {
+function CardOverlay({ card }: { card: Card }) {
   return (
-    <div className="p-2 rounded bg-background border-2 border-primary shadow-lg cursor-grabbing">
-      <span className="text-sm">{card.title}</span>
+    <div className="p-2 rounded bg-background border-2 border-primary shadow-xl cursor-grabbing">
+      <span className="text-sm font-medium">{card.title}</span>
     </div>
   );
 }
@@ -101,6 +130,7 @@ function CardOverlay({ card }: CardOverlayProps) {
 interface ColumnProps {
   column: BoardColumn;
   cards: Card[];
+  cardStatuses: Record<string, CardStatus>;
   onDeleteColumn: (columnId: string) => void;
   onCreateCard: (columnId: string, e: React.FormEvent) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
@@ -113,6 +143,7 @@ interface ColumnProps {
 function Column({
   column,
   cards,
+  cardStatuses,
   onDeleteColumn,
   onCreateCard,
   onDeleteCard,
@@ -135,7 +166,7 @@ function Column({
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragging ? "none" : transition,
     opacity: isDragging ? 0.5 : 1,
   };
 
@@ -146,11 +177,11 @@ function Column({
       className="w-72 flex-shrink-0 flex flex-col rounded-lg border border-border bg-card"
     >
       <div className="p-3 flex items-center justify-between border-b border-border">
-        <div className="flex items-center gap-1 flex-1">
+        <div className="flex items-center gap-1 flex-1 min-w-0">
           <button
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-0.5 text-muted-foreground hover:text-foreground"
+            className="cursor-grab active:cursor-grabbing p-0.5 text-muted-foreground hover:text-foreground flex-shrink-0"
           >
             <GripVertical className="size-3" />
           </button>
@@ -161,7 +192,7 @@ function Column({
         </div>
         <button
           onClick={() => onDeleteColumn(column.id)}
-          className="p-1 rounded hover:bg-muted text-muted-foreground"
+          className="p-1 rounded hover:bg-muted text-muted-foreground flex-shrink-0"
         >
           <Trash2 className="size-3" />
         </button>
@@ -171,12 +202,13 @@ function Column({
         items={cards.map((c) => c.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="p-2 space-y-2 max-h-[60vh] overflow-y-auto">
+        <div className="p-2 space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
           {cards.map((card) => (
             <SortableCard
               key={card.id}
               card={card}
               columnId={column.id}
+              status={cardStatuses[card.id] || { saving: false, error: false }}
               onDelete={onDeleteCard}
               onNavigate={onNavigate}
             />
@@ -198,7 +230,11 @@ function Column({
             disabled={isCreating || !newCardTitle.trim()}
             className="p-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {isCreating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            {isCreating ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
           </button>
         </form>
       </div>
@@ -214,6 +250,7 @@ export default function BoardDetailPage() {
   const [board, setBoard] = useState<Board | null>(null);
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [cardsByColumn, setCardsByColumn] = useState<Record<string, Card[]>>({});
+  const [cardStatuses, setCardStatuses] = useState<Record<string, CardStatus>>({});
   const [loading, setLoading] = useState(true);
 
   const [newColumnTitle, setNewColumnTitle] = useState("");
@@ -223,10 +260,15 @@ export default function BoardDetailPage() {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"card" | "column" | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
   );
 
   useEffect(() => {
@@ -255,6 +297,16 @@ export default function BoardDetailPage() {
       setLoading(false);
     }
   };
+
+  const updateCardStatus = useCallback(
+    (cardId: string, status: Partial<CardStatus>) => {
+      setCardStatuses((prev) => ({
+        ...prev,
+        [cardId]: { ...prev[cardId], ...status },
+      }));
+    },
+    []
+  );
 
   const handleCreateColumn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -345,13 +397,18 @@ export default function BoardDetailPage() {
 
   const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
+
+    if (over) {
+      setOverId(over.id as string);
+    }
+
     if (!over) return;
 
     const activeId = active.id as string;
     const overId = over.id as string;
 
     const activeColumnId = findColumn(activeId);
-    const overColumnId = activeColumnId && findColumn(overId);
+    const overColumnId = findColumn(overId);
 
     if (!activeColumnId || !overColumnId || activeColumnId === overColumnId) return;
 
@@ -377,6 +434,7 @@ export default function BoardDetailPage() {
     const { active, over } = event;
     setActiveId(null);
     setActiveType(null);
+    setOverId(null);
 
     if (!over) return;
 
@@ -402,36 +460,42 @@ export default function BoardDetailPage() {
           [activeColumnId]: cards,
         }));
 
+        updateCardStatus(activeId, { saving: true, error: false });
+
         try {
           await cardsApi.update(activeId, {
             order: overIndex,
             column_id: activeColumnId,
           });
+          updateCardStatus(activeId, { saving: false, error: false });
         } catch (e) {
           console.error("Error updating card order:", e);
+          updateCardStatus(activeId, { saving: false, error: true });
           fetchBoardData();
         }
       }
     } else if (activeColumnId && overColumnId) {
+      updateCardStatus(activeId, { saving: true, error: false });
+
       try {
         await cardsApi.update(activeId, {
           column_id: overColumnId,
         });
+        updateCardStatus(activeId, { saving: false, error: false });
       } catch (e) {
         console.error("Error moving card to different column:", e);
+        updateCardStatus(activeId, { saving: false, error: true });
         fetchBoardData();
       }
     }
   };
 
-  const activeCard = useMemo(() => {
-    if (!activeId || activeType !== "card") return null;
-    for (const cards of Object.values(cardsByColumn)) {
-      const card = cards.find((c) => c.id === activeId);
-      if (card) return card;
-    }
-    return null;
-  }, [activeId, activeType, cardsByColumn]);
+  const activeCard =
+    activeId && activeType === "card"
+      ? Object.values(cardsByColumn)
+          .flat()
+          .find((c) => c.id === activeId) || null
+      : null;
 
   if (loading) {
     return (
@@ -462,6 +526,11 @@ export default function BoardDetailPage() {
           onDragStart={onDragStart}
           onDragOver={onDragOver}
           onDragEnd={onDragEnd}
+          measuring={{
+            droppable: {
+              strategy: MeasuringStrategy.Always,
+            },
+          }}
         >
           <SortableContext
             items={columns.map((c) => c.id)}
@@ -473,6 +542,7 @@ export default function BoardDetailPage() {
                   key={column.id}
                   column={column}
                   cards={cardsByColumn[column.id] || []}
+                  cardStatuses={cardStatuses}
                   onDeleteColumn={handleDeleteColumn}
                   onCreateCard={handleCreateCard}
                   onDeleteCard={handleDeleteCard}

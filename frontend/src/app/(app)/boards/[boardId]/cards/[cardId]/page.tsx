@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -13,9 +13,14 @@ import {
   MessageSquare,
   Plus,
   Check,
+  Save,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
-import { boardsApi, cardsApi } from "@/lib/api";
+import { cardsApi } from "@/lib/api";
 import type { Card } from "@/types/kanban";
+
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export default function CardDetailPage() {
   const params = useParams();
@@ -25,7 +30,8 @@ export default function CardDetailPage() {
 
   const [card, setCard] = useState<Card | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -37,6 +43,14 @@ export default function CardDetailPage() {
   useEffect(() => {
     fetchCard();
   }, [boardId, cardId]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const fetchCard = async () => {
     try {
@@ -53,8 +67,8 @@ export default function CardDetailPage() {
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
+  const saveCard = useCallback(async () => {
+    setSaveStatus("saving");
     try {
       await cardsApi.update(cardId, {
         title,
@@ -62,10 +76,51 @@ export default function CardDetailPage() {
         start_date: startDate || undefined,
         end_date: endDate || undefined,
       });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
     } catch (e) {
       console.error(e);
-    } finally {
-      setSaving(false);
+      setSaveStatus("error");
+    }
+  }, [cardId, title, description, startDate, endDate]);
+
+  const debouncedSave = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveCard();
+    }, 1000);
+  }, [saveCard]);
+
+  const handleTitleChange = (newTitle: string) => {
+    setTitle(newTitle);
+    if (newTitle !== card?.title) {
+      debouncedSave();
+    }
+  };
+
+  const handleDescriptionChange = (newDescription: string) => {
+    setDescription(newDescription);
+    if (newDescription !== card?.description) {
+      debouncedSave();
+    }
+  };
+
+  const handleDateChange = (
+    field: "start_date" | "end_date",
+    value: string
+  ) => {
+    if (field === "start_date") {
+      setStartDate(value);
+      if (value !== (card?.start_date || "")) {
+        debouncedSave();
+      }
+    } else {
+      setEndDate(value);
+      if (value !== (card?.end_date || "")) {
+        debouncedSave();
+      }
     }
   };
 
@@ -142,6 +197,24 @@ export default function CardDetailPage() {
           >
             <ArrowLeft className="size-4" />
           </button>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              className="text-lg font-semibold bg-transparent border-none outline-none focus:ring-0 px-0"
+              placeholder="Título de la tarea"
+            />
+            {saveStatus === "saving" && (
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            )}
+            {saveStatus === "saved" && (
+              <CheckCircle2 className="size-4 text-green-500" />
+            )}
+            {saveStatus === "error" && (
+              <AlertCircle className="size-4 text-destructive" />
+            )}
+          </div>
         </div>
         <button
           onClick={handleDelete}
@@ -153,17 +226,6 @@ export default function CardDetailPage() {
 
       <main className="max-w-4xl mx-auto p-6">
         <div className="space-y-6">
-          <div>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleSave}
-              className="text-2xl font-bold bg-transparent border-none outline-none w-full focus:ring-0"
-              placeholder="Título de la tarea"
-            />
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-6">
               <div>
@@ -172,8 +234,7 @@ export default function CardDetailPage() {
                 </label>
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={handleSave}
+                  onChange={(e) => handleDescriptionChange(e.target.value)}
                   rows={4}
                   className="w-full px-3 py-2 rounded-md border border-input bg-background resize-none"
                   placeholder="Agregar una descripción más detallada..."
@@ -189,7 +250,9 @@ export default function CardDetailPage() {
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary transition-all"
-                        style={{ width: `${(completedChecklists / totalChecklists) * 100}%` }}
+                        style={{
+                          width: `${(completedChecklists / totalChecklists) * 100}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -201,8 +264,10 @@ export default function CardDetailPage() {
                       className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 group"
                     >
                       <button
-                        onClick={() => handleToggleChecklist(item.id, item.is_completed)}
-                        className={`p-1 rounded ${
+                        onClick={() =>
+                          handleToggleChecklist(item.id, item.is_completed)
+                        }
+                        className={`p-1 rounded flex-shrink-0 ${
                           item.is_completed
                             ? "bg-primary text-primary-foreground"
                             : "border border-border"
@@ -212,14 +277,16 @@ export default function CardDetailPage() {
                       </button>
                       <span
                         className={`flex-1 ${
-                          item.is_completed ? "line-through text-muted-foreground" : ""
+                          item.is_completed
+                            ? "line-through text-muted-foreground"
+                            : ""
                         }`}
                       >
                         {item.content}
                       </span>
                       <button
                         onClick={() => handleDeleteChecklistItem(item.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-destructive"
+                        className="opacity-0 group-hover:opacity-100 p-1 text-destructive flex-shrink-0"
                       >
                         <Trash2 className="size-3" />
                       </button>
@@ -286,26 +353,24 @@ export default function CardDetailPage() {
                 </label>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground w-16">Inicio:</span>
+                    <span className="text-sm text-muted-foreground w-16 flex-shrink-0">
+                      Inicio:
+                    </span>
                     <input
                       type="date"
                       value={startDate}
-                      onChange={(e) => {
-                        setStartDate(e.target.value);
-                      }}
-                      onBlur={handleSave}
+                      onChange={(e) => handleDateChange("start_date", e.target.value)}
                       className="flex-1 px-2 py-1 rounded border border-input bg-background text-sm"
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground w-16">Fin:</span>
+                    <span className="text-sm text-muted-foreground w-16 flex-shrink-0">
+                      Fin:
+                    </span>
                     <input
                       type="date"
                       value={endDate}
-                      onChange={(e) => {
-                        setEndDate(e.target.value);
-                      }}
-                      onBlur={handleSave}
+                      onChange={(e) => handleDateChange("end_date", e.target.value)}
                       className="flex-1 px-2 py-1 rounded border border-input bg-background text-sm"
                     />
                   </div>
@@ -323,16 +388,14 @@ export default function CardDetailPage() {
                       key={user.id}
                       className="flex items-center gap-2 p-2 rounded bg-muted/50"
                     >
-                      <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                      <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs flex-shrink-0">
                         {user.email?.[0]?.toUpperCase() || "?"}
                       </div>
-                      <span className="text-sm">{user.email}</span>
+                      <span className="text-sm truncate">{user.email}</span>
                     </div>
                   ))}
                   {(!card?.assignees || card.assignees.length === 0) && (
-                    <p className="text-sm text-muted-foreground">
-                      Sin asignar
-                    </p>
+                    <p className="text-sm text-muted-foreground">Sin asignar</p>
                   )}
                 </div>
               </div>
@@ -351,14 +414,12 @@ export default function CardDetailPage() {
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 p-2 rounded hover:bg-muted/50"
                     >
-<Paperclip className="size-4" />
+                      <Paperclip className="size-4 flex-shrink-0" />
                       <span className="text-sm truncate">{att.filename}</span>
                     </a>
                   ))}
                   {(!card?.attachments || card.attachments.length === 0) && (
-                    <p className="text-sm text-muted-foreground">
-                      Sin archivos
-                    </p>
+                    <p className="text-sm text-muted-foreground">Sin archivos</p>
                   )}
                 </div>
               </div>
