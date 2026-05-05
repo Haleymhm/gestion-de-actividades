@@ -16,8 +16,9 @@ import {
   CheckCircle2,
   Upload,
   X,
+  Search,
 } from "lucide-react";
-import { cardsApi } from "@/lib/api";
+import { cardsApi, authApi, boardsApi } from "@/lib/api";
 import type { Card } from "@/types/kanban";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -39,6 +40,9 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
   const [endDate, setEndDate] = useState("");
   const [newChecklist, setNewChecklist] = useState("");
   const [newComment, setNewComment] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Array<{ id: string; email: string }>>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     if (open && cardId) {
@@ -132,6 +136,48 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
     try {
       await cardsApi.delete(cardId);
       onClose();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSearchUsers = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await boardsApi.getMembers(boardId);
+      const currentAssigneeIds = new Set(card?.assignees?.map((a) => a.user_id));
+      const filtered = res.data
+        .filter((m) => m.email.toLowerCase().includes(query.toLowerCase()))
+        .map((m) => ({ id: m.user_id, email: m.email }))
+        .filter((u) => !currentAssigneeIds.has(u.id));
+      setSearchResults(filtered);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAssignUser = async (userId: string) => {
+    try {
+      await cardsApi.assignUser(cardId, userId);
+      setSearchQuery("");
+      setSearchResults([]);
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRemoveUser = async (userId: string) => {
+    try {
+      await cardsApi.removeUser(cardId, userId);
+      fetchCard();
     } catch (e) {
       console.error(e);
     }
@@ -347,20 +393,58 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
                 <User className="size-4" />
                 Asignados
               </label>
-              <div className="space-y-1">
+              <div className="space-y-1 mb-3">
                 {card?.assignees?.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center gap-2 p-2 rounded bg-muted/50"
+                    className="flex items-center gap-2 p-2 rounded bg-muted/50 group"
                   >
                     <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs flex-shrink-0">
                       {user.email?.[0]?.toUpperCase() || "?"}
                     </div>
-                    <span className="text-sm truncate">{user.email}</span>
+                    <span className="text-sm truncate flex-1">{user.email}</span>
+                    <button
+                      onClick={() => handleRemoveUser(user.user_id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-destructive flex-shrink-0 hover:bg-destructive/10 rounded"
+                    >
+                      <X className="size-3" />
+                    </button>
                   </div>
                 ))}
                 {(!card?.assignees || card.assignees.length === 0) && (
                   <p className="text-sm text-muted-foreground">Sin asignar</p>
+                )}
+              </div>
+              <div className="relative">
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-input bg-background">
+                  <Search className="size-4 text-muted-foreground flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => handleSearchUsers(e.target.value)}
+                    placeholder="Buscar usuario por email..."
+                    className="flex-1 bg-transparent text-sm outline-none"
+                  />
+                  {searching && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+                </div>
+                {searchResults.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    {searchResults.map((user) => (
+                      <button
+                        key={user.id}
+                        onClick={() => handleAssignUser(user.id)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50"
+                      >
+                        <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs flex-shrink-0">
+                          {user.email[0]?.toUpperCase() || "?"}
+                        </div>
+                        <span className="truncate">{user.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {searchQuery && searchResults.length === 0 && !searching && (
+                  <p className="text-xs text-muted-foreground mt-2">No se encontraron usuarios</p>
                 )}
               </div>
             </div>

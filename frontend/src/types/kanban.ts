@@ -25,7 +25,7 @@ export type Card = {
   start_date?: string | null;
   end_date?: string | null;
   order: number;
-  assignees?: Array<{ id: string; email: string }>;
+  assignees?: Array<{ id: string; user_id: string; email: string }>;
   checklists?: ChecklistItem[];
   comments?: Comment[];
   attachments?: Attachment[];
