@@ -17,6 +17,13 @@ export type BoardColumn = {
   cards?: Card[];
 };
 
+export type Tag = {
+  id: string;
+  name: string;
+  color: string;
+  board_id: string;
+};
+
 export type Card = {
   id: string;
   column_id: string;
@@ -29,6 +36,7 @@ export type Card = {
   checklists?: ChecklistItem[];
   comments?: Comment[];
   attachments?: Attachment[];
+  tags?: Tag[];
 };
 
 export type CardCreate = {

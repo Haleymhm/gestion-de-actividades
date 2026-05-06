@@ -116,6 +116,20 @@ function SortableCard({
           </button>
         </div>
       </div>
+      {card.tags && card.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1 ml-4">
+          {card.tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag.id}
+              className="h-1.5 w-6 rounded-full"
+              style={{ backgroundColor: tag.color }}
+            />
+          ))}
+          {card.tags.length > 3 && (
+            <span className="text-[10px] text-muted-foreground">+{card.tags.length - 3}</span>
+          )}
+        </div>
+      )}
       {card.description && (
         <p className="text-xs text-muted-foreground mt-1 line-clamp-2 ml-4">
           {card.description}

@@ -3,7 +3,7 @@ import shutil
 import uuid
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.db.session import get_db
 from app.models.user import User
@@ -22,7 +22,7 @@ def get_card(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    card = db.query(Card).filter(Card.id == card_id).first()
+    card = db.query(Card).options(joinedload(Card.tags)).filter(Card.id == card_id).first()
     if not card:
         raise HTTPException(404, "Tarjeta no encontrada")
     return card
@@ -37,7 +37,7 @@ def get_cards(
     if not column:
         raise HTTPException(404, "Columna no encontrada")
     
-    cards = db.query(Card).filter(Card.column_id == column_id).order_by(Card.order.asc()).all()
+    cards = db.query(Card).options(joinedload(Card.tags)).filter(Card.column_id == column_id).order_by(Card.order.asc()).all()
     return cards
 
 @router.post("/", response_model=CardOut, status_code=status.HTTP_201_CREATED)

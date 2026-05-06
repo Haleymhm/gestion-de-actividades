@@ -47,6 +47,22 @@ class AttachmentOut(BaseModel):
     file_url: str
     model_config = {"from_attributes": True}
 
+class TagOut(BaseModel):
+    id: str
+    name: str
+    color: str
+    board_id: str
+    model_config = {"from_attributes": True}
+
+class TagCreate(BaseModel):
+    name: str
+    color: str
+    board_id: str
+
+class TagUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+
 class CardBase(BaseModel):
     title: str
     description: Optional[str] = None
@@ -72,6 +88,7 @@ class CardOut(CardBase):
     checklists: List[ChecklistItemOut] = []
     attachments: List[AttachmentOut] = []
     comments: List[CommentOut] = []
+    tags: List[TagOut] = []
     model_config = {"from_attributes": True}
 
 class ColumnBase(BaseModel):

@@ -13,6 +13,7 @@ class Board(Base):
     owner = relationship("User", back_populates="owned_boards")
     columns = relationship("ColumnModel", back_populates="board", cascade="all, delete-orphan")
     members = relationship("BoardMember", back_populates="board", cascade="all, delete-orphan")
+    tags = relationship("Tag", back_populates="board", cascade="all, delete-orphan")
 
 class BoardMember(Base):
     __tablename__ = "board_members"

@@ -17,11 +17,18 @@ import {
   Upload,
   X,
   Search,
+  Tag as TagIcon,
 } from "lucide-react";
-import { cardsApi, authApi, boardsApi } from "@/lib/api";
-import type { Card } from "@/types/kanban";
+import { cardsApi, authApi, boardsApi, tagsApi } from "@/lib/api";
+import type { Card, Tag } from "@/types/kanban";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+const TAG_COLORS = [
+  "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6",
+  "#3b82f6", "#6366f1", "#a855f7", "#ec4899", "#64748b",
+  "#84cc16", "#06b6d4",
+];
 
 interface CardModalProps {
   cardId: string;
@@ -43,12 +50,21 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Array<{ id: string; email: string }>>([]);
   const [searching, setSearching] = useState(false);
+  const [boardTags, setBoardTags] = useState<Tag[]>([]);
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
 
   useEffect(() => {
     if (open && cardId) {
       fetchCard();
     }
   }, [open, cardId]);
+
+  useEffect(() => {
+    if (open && boardId) {
+      fetchTags();
+    }
+  }, [open, boardId]);
 
   const fetchCard = async () => {
     try {
@@ -62,6 +78,15 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTags = async () => {
+    try {
+      const res = await tagsApi.list(boardId);
+      setBoardTags(res.data);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -177,6 +202,35 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
   const handleRemoveUser = async (userId: string) => {
     try {
       await cardsApi.removeUser(cardId, userId);
+      fetchCard();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+    try {
+      const res = await tagsApi.create({
+        name: newTagName,
+        color: TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)],
+        board_id: boardId,
+      });
+      setBoardTags([...boardTags, res.data]);
+      setNewTagName("");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleTag = async (tagId: string) => {
+    const isAssigned = card?.tags?.some((t) => t.id === tagId);
+    try {
+      if (isAssigned) {
+        await tagsApi.removeFromCard(cardId, tagId);
+      } else {
+        await tagsApi.assignToCard(cardId, tagId);
+      }
       fetchCard();
     } catch (e) {
       console.error(e);
@@ -447,6 +501,74 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
                   <p className="text-xs text-muted-foreground mt-2">No se encontraron usuarios</p>
                 )}
               </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <TagIcon className="size-4" />
+                Etiquetas
+              </label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {card?.tags?.map((tag) => (
+                  <button
+                    key={tag.id}
+                    onClick={() => handleToggleTag(tag.id)}
+                    className="px-2 py-0.5 rounded-full text-xs font-medium text-white hover:opacity-80"
+                    style={{ backgroundColor: tag.color }}
+                  >
+                    {tag.name} ×
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowTagPicker(!showTagPicker)}
+                className="text-xs text-primary hover:underline"
+              >
+                {showTagPicker ? "Cerrar" : "+ Agregar etiqueta"}
+              </button>
+              {showTagPicker && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {boardTags.map((tag) => {
+                      const isAssigned = card?.tags?.some((t) => t.id === tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          onClick={() => handleToggleTag(tag.id)}
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium transition-all ${
+                            isAssigned
+                              ? "ring-2 ring-offset-1 ring-primary scale-105"
+                              : "opacity-50 hover:opacity-75"
+                          }`}
+                          style={{
+                            backgroundColor: tag.color,
+                            color: "#fff",
+                          }}
+                        >
+                          {tag.name} {isAssigned ? "✓" : "+"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
+                      placeholder="Nueva etiqueta..."
+                      className="flex-1 px-2 py-1 rounded border border-input bg-background text-xs"
+                    />
+                    <button
+                      onClick={handleCreateTag}
+                      disabled={!newTagName.trim()}
+                      className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs disabled:opacity-50"
+                    >
+                      Crear
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

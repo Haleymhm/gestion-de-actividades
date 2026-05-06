@@ -31,7 +31,7 @@ api.interceptors.response.use(
   }
 )
 
-import type { Board, BoardCreate, BoardColumn, Card, CardCreate, CardUpdate } from "@/types/kanban"
+import type { Board, BoardCreate, BoardColumn, Card, CardCreate, CardUpdate, Tag } from "@/types/kanban"
 
 export const authApi = {
   searchUsers: (q: string) => 
@@ -110,4 +110,22 @@ export const cardsApi = {
 
   removeUser: (cardId: string, userId: string) => 
     api.delete(`/api/cards/${cardId}/assign/${userId}`),
+}
+
+export const tagsApi = {
+  list: (boardId: string) => api.get<Tag[]>(`/api/tags/?board_id=${boardId}`),
+  
+  create: (data: { name: string; color: string; board_id: string }) => 
+    api.post<Tag>("/api/tags/", data),
+  
+  update: (id: string, data: { name?: string; color?: string }) => 
+    api.put<Tag>(`/api/tags/${id}`, data),
+  
+  delete: (id: string) => api.delete(`/api/tags/${id}`),
+  
+  assignToCard: (cardId: string, tagId: string) => 
+    api.post<Card>(`/api/tags/cards/${cardId}/tags/${tagId}`),
+  
+  removeFromCard: (cardId: string, tagId: string) => 
+    api.delete(`/api/tags/cards/${cardId}/tags/${tagId}`),
 }

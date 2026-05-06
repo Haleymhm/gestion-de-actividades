@@ -31,6 +31,7 @@ app = FastAPI(
 )
 
 from app.api.routers import auth, boards, columns, cards
+from app.api.routers.tags import router as tags_router
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +45,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(boards.router, prefix="/api/boards", tags=["Boards"])
 app.include_router(columns.router, prefix="/api/columns", tags=["Columns"])
 app.include_router(cards.router, prefix="/api/cards", tags=["Cards"])
+app.include_router(tags_router, prefix="/api/tags", tags=["Tags"])
 
 # Asegurar que el directorio uploads existe
 os.makedirs("uploads", exist_ok=True)

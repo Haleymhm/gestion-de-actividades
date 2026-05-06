@@ -1,7 +1,14 @@
 import uuid
-from sqlalchemy import Column, String, Integer, ForeignKey, Date
+from sqlalchemy import Column, String, Integer, ForeignKey, Date, Table
 from sqlalchemy.orm import relationship
 from .base import Base
+
+card_tags = Table(
+    "card_tags",
+    Base.metadata,
+    Column("card_id", String, ForeignKey("cards.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", String, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+)
 
 class ColumnModel(Base):
     __tablename__ = "columns"
@@ -13,6 +20,17 @@ class ColumnModel(Base):
 
     board = relationship("Board", back_populates="columns")
     cards = relationship("Card", back_populates="column", cascade="all, delete-orphan")
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    color = Column(String, nullable=False)
+    board_id = Column(String, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False)
+
+    board = relationship("Board", back_populates="tags")
+    cards = relationship("Card", secondary=card_tags, back_populates="cards")
 
 class Card(Base):
     __tablename__ = "cards"
@@ -30,3 +48,4 @@ class Card(Base):
     checklists = relationship("Checklist", back_populates="card", cascade="all, delete-orphan")
     attachments = relationship("Attachment", back_populates="card", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="card", cascade="all, delete-orphan")
+    tags = relationship("Tag", secondary=card_tags, back_populates="cards")
