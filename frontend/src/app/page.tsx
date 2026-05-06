@@ -29,7 +29,7 @@ export default function Home() {
             <ArrowLeft className="size-4" />
           </button>
         <h1 className="text-lg font-semibold tracking-tight">
-          Gestión de actividades in APP Inicio de sesion y registro
+          Gestión de actividades
         </h1>
         <div className="flex items-center gap-2">
           <ThemeToggle />

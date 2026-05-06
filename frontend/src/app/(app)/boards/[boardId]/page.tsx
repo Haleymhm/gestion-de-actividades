@@ -32,7 +32,6 @@ import {
   Save,
   AlertCircle,
   CheckCircle2,
-  Users,
   UserPlus,
   Search,
   X,
@@ -319,11 +318,9 @@ export default function BoardDetailPage() {
   const [newCardTitle, setNewCardTitle] = useState<Record<string, string>>({});
   const [creatingCard, setCreatingCard] = useState<Record<string, boolean>>({});
 
-  const [showMembers, setShowMembers] = useState(false);
   const [members, setMembers] = useState<{id: string; user_id: string; email: string; username?: string | null}[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{id: string; email: string; username?: string | null}[]>([]);
-  const [searchingUsers, setSearchingUsers] = useState(false);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<"card" | "column" | null>(null);
@@ -424,15 +421,12 @@ export default function BoardDetailPage() {
       setSearchResults([]);
       return;
     }
-    setSearchingUsers(true);
     try {
       const res = await authApi.searchUsers(query);
       const existingIds = [board?.owner_id, ...members.map(m => m.user_id)];
       setSearchResults(res.data.filter(u => !existingIds.includes(u.id)));
     } catch (e) {
       console.error(e);
-    } finally {
-      setSearchingUsers(false);
     }
   };
 
@@ -442,17 +436,6 @@ export default function BoardDetailPage() {
       setMembers([...members, { id: "", user_id: userId, email: searchResults.find(u => u.id === userId)?.email || "", username: searchResults.find(u => u.id === userId)?.username }]);
       setUserSearch("");
       setSearchResults([]);
-      setShowMembers(true);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleRemoveMember = async (userId: string) => {
-    if (!confirm("¿Eliminar este miembro del tablero?")) return;
-    try {
-      await boardsApi.removeMember(boardId, userId);
-      setMembers(members.filter(m => m.user_id !== userId));
     } catch (e) {
       console.error(e);
     }
@@ -682,7 +665,7 @@ export default function BoardDetailPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-border px-6 py-4 flex items-center justify-between gap-6">
         
         <div className="flex items-center gap-3">
           <button
@@ -693,82 +676,40 @@ export default function BoardDetailPage() {
           </button>
           <h1 className="text-lg font-semibold tracking-tight">{(board?.title || "?").toUpperCase()}</h1>
         </div>
-      <div className="w-72 flex-shrink-0 mt-4">
-          <form onSubmit={handleCreateColumn} className="flex gap-2">
-            <input
-              type="text"
-              value={newColumnTitle}
-              onChange={(e) => setNewColumnTitle(e.target.value)}
-              placeholder="Nueva columna..."
-              className="flex-1 px-3 py-2 rounded-md border border-input bg-card text-sm"
-            />
-            <button
-              type="submit"
-              disabled={creatingColumn || !newColumnTitle.trim()}
-              className="px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
-            >
-              {creatingColumn ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Plus className="size-4" />
-              )}
-            </button>
-          </form>
-        </div>
-      </header>
-      {showMembers && (
-        <div className="border-b border-border bg-muted/30 p-4">
-          <div className="max-w-md">
-            <h3 className="font-medium text-sm mb-3 flex items-center gap-2">
-              <Users className="size-4" />
-              Colaboradores del tablero
-            </h3>
-            <div className="space-y-2 mb-3">
-              <div className="flex items-center gap-2 p-2 rounded bg-background text-sm">
-                <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
-                  {(board?.owner_username?.[0] || "?").toUpperCase()}
-                </div>
-                <span className="flex-1">Dueño (tú) {board?.owner_username && `(${board.owner_username})`}</span>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs border-2 border-background">
+                {(board?.owner_username?.[0] || "?").toUpperCase()}
               </div>
-              {members.map((member) => (
+              {members.slice(0, 3).map((member) => (
                 <div
                   key={member.user_id}
-                  className="flex items-center gap-2 p-2 rounded bg-background text-sm group"
+                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs border-2 border-background"
+                  title={member.username || member.email}
                 >
-                  <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs">
-                    {(member.username?.[0] || member.email?.[0] || "?").toUpperCase()}
-                  </div>
-                  <span className="flex-1 truncate">{member.username || member.email}</span>
-                  <button
-                    onClick={() => handleRemoveMember(member.user_id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-destructive"
-                  >
-                    <X className="size-3" />
-                  </button>
+                  {(member.username?.[0] || member.email?.[0] || "?").toUpperCase()}
                 </div>
               ))}
-              {members.length === 0 && (
-                <p className="text-sm text-muted-foreground">Sin colaboradores</p>
+              {members.length > 3 && (
+                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs border-2 border-background">
+                  +{members.length - 3}
+                </div>
               )}
             </div>
             <div className="relative">
               <div className="flex items-center gap-2">
-                <div className="relative flex-1">
+                <div className="relative">
                   <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={userSearch}
                     onChange={(e) => handleSearchUsers(e.target.value)}
-                    placeholder="Buscar usuario por email..."
-                    className="w-full pl-9 pr-3 py-2 rounded-md border border-input bg-background text-sm"
+                    placeholder="Agregar colaborador..."
+                    className="w-48 pl-9 pr-3 py-1.5 rounded-md border border-input bg-background text-sm"
                   />
                 </div>
-                <button
-                  onClick={() => setShowMembers(false)}
-                  className="p-2 rounded-md hover:bg-muted"
-                >
-                  <X className="size-4" />
-                </button>
               </div>
               {searchResults.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 border border-border rounded-md bg-background shadow-lg max-h-40 overflow-y-auto">
@@ -786,8 +727,31 @@ export default function BoardDetailPage() {
               )}
             </div>
           </div>
+
+          <div className="w-72 flex-shrink-0">
+            <form onSubmit={handleCreateColumn} className="flex gap-2">
+              <input
+                type="text"
+                value={newColumnTitle}
+                onChange={(e) => setNewColumnTitle(e.target.value)}
+                placeholder="Nueva columna..."
+                className="flex-1 px-3 py-2 rounded-md border border-input bg-card text-sm"
+              />
+              <button
+                type="submit"
+                disabled={creatingColumn || !newColumnTitle.trim()}
+                className="px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+              >
+                {creatingColumn ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Plus className="size-4" />
+                )}
+              </button>
+            </form>
+          </div>
         </div>
-      )}
+      </header>
 
       <main className="p-6 overflow-x-auto">
         <DndContext
