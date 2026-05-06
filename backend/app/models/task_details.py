@@ -10,6 +10,7 @@ class TaskAssignee(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     card_id = Column(String, ForeignKey("cards.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     card = relationship("Card", back_populates="assignees")
     user = relationship("User", back_populates="assigned_tasks")
@@ -21,6 +22,8 @@ class Checklist(Base):
     card_id = Column(String, ForeignKey("cards.id"), nullable=False)
     content = Column(String, nullable=False)
     is_completed = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     card = relationship("Card", back_populates="checklists")
 
@@ -31,6 +34,7 @@ class Attachment(Base):
     card_id = Column(String, ForeignKey("cards.id"), nullable=False)
     file_url = Column(String, nullable=False)
     filename = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     card = relationship("Card", back_populates="attachments")
 
@@ -42,6 +46,7 @@ class Comment(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     content = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     card = relationship("Card", back_populates="comments")
     user = relationship("User", back_populates="comments")

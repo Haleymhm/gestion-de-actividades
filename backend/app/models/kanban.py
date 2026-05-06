@@ -1,5 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Integer, ForeignKey, Date, Table
+from sqlalchemy import Column, String, Integer, ForeignKey, Date, Table, DateTime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .base import Base
 
@@ -17,6 +18,8 @@ class ColumnModel(Base):
     title = Column(String, nullable=False)
     order = Column(Integer, nullable=False, default=0)
     board_id = Column(String, ForeignKey("boards.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     board = relationship("Board", back_populates="columns")
     cards = relationship("Card", back_populates="column", cascade="all, delete-orphan")
@@ -28,6 +31,8 @@ class Tag(Base):
     name = Column(String, nullable=False)
     color = Column(String, nullable=False)
     board_id = Column(String, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     board = relationship("Board", back_populates="tags")
     cards = relationship("Card", secondary=card_tags, back_populates="tags")
@@ -42,10 +47,12 @@ class Card(Base):
     end_date = Column(Date, nullable=True)
     order = Column(Integer, nullable=False, default=0)
     column_id = Column(String, ForeignKey("columns.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     column = relationship("ColumnModel", back_populates="cards")
     assignees = relationship("TaskAssignee", back_populates="card", cascade="all, delete-orphan")
     checklists = relationship("Checklist", back_populates="card", cascade="all, delete-orphan")
     attachments = relationship("Attachment", back_populates="card", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="card", cascade="all, delete-orphan")
-    tags = relationship("Tag", secondary=card_tags, back_populates="cards")
+    tags = relationship("Tag", secondary=card_tags, back_populates="tags")

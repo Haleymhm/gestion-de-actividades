@@ -1,5 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Enum
+from sqlalchemy import Column, String, Enum, DateTime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import enum
 from .base import Base
@@ -16,6 +17,8 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=False)
     global_role = Column(Enum(GlobalRole), default=GlobalRole.STANDARD)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     owned_boards = relationship("Board", back_populates="owner")
