@@ -84,7 +84,7 @@ def update_username(
 ) -> Any:
     """Actualiza el username del usuario."""
     existing = db.query(User).filter(
-        User.username == username, 
+        User.username == username,
         User.id != current_user.id
     ).first()
     if existing:

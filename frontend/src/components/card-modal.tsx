@@ -53,6 +53,7 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
   const [boardTags, setBoardTags] = useState<Tag[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [newTagName, setNewTagName] = useState("");
+  const [selectedColor, setSelectedColor] = useState(TAG_COLORS[0]);
 
   useEffect(() => {
     if (open && cardId) {
@@ -213,7 +214,7 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
     try {
       const res = await tagsApi.create({
         name: newTagName,
-        color: TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)],
+        color: selectedColor,
         board_id: boardId,
       });
       setBoardTags([...boardTags, res.data]);
@@ -549,6 +550,21 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
                         </button>
                       );
                     })}
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Color:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {TAG_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => setSelectedColor(color)}
+                          className={`w-6 h-6 rounded-full border-2 transition-all ${
+                            selectedColor === color ? "border-primary scale-110" : "border-transparent hover:scale-105"
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <input

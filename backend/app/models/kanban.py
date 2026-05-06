@@ -30,7 +30,7 @@ class Tag(Base):
     board_id = Column(String, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False)
 
     board = relationship("Board", back_populates="tags")
-    cards = relationship("Card", secondary=card_tags, back_populates="cards")
+    cards = relationship("Card", secondary=card_tags, back_populates="tags")
 
 class Card(Base):
     __tablename__ = "cards"
