@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { boardsApi, columnsApi, cardsApi, authApi } from "@/lib/api";
 import { CardModal } from "@/components/card-modal";
+import { AppHeader } from "@/components/app-header";
 import type { Board, BoardColumn, Card } from "@/types/kanban";
 
 interface CardStatus {
@@ -98,6 +99,20 @@ function SortableCard({
           </button>
           <span className="text-sm truncate">{card.title}</span>
         </div>
+        {card.tags && card.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1 ml-4">
+            {card.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag.id}
+                className="h-1.5 w-6 rounded-full"
+                style={{ backgroundColor: tag.color }}
+              />
+            ))}
+            {card.tags.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">+{card.tags.length - 3}</span>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-1 flex-shrink-0">
           {status.saving && (
             <Loader2 className="size-3 animate-spin text-muted-foreground" />
@@ -116,20 +131,6 @@ function SortableCard({
           </button>
         </div>
       </div>
-      {card.tags && card.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1 ml-4">
-          {card.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag.id}
-              className="h-1.5 w-6 rounded-full"
-              style={{ backgroundColor: tag.color }}
-            />
-          ))}
-          {card.tags.length > 3 && (
-            <span className="text-[10px] text-muted-foreground">+{card.tags.length - 3}</span>
-          )}
-        </div>
-      )}
       {card.description && (
         <p className="text-xs text-muted-foreground mt-1 line-clamp-2 ml-4">
           {card.description}
@@ -319,9 +320,9 @@ export default function BoardDetailPage() {
   const [creatingCard, setCreatingCard] = useState<Record<string, boolean>>({});
 
   const [showMembers, setShowMembers] = useState(false);
-  const [members, setMembers] = useState<{id: string; user_id: string; email: string}[]>([]);
+  const [members, setMembers] = useState<{id: string; user_id: string; email: string; username?: string | null}[]>([]);
   const [userSearch, setUserSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<{id: string; email: string}[]>([]);
+  const [searchResults, setSearchResults] = useState<{id: string; email: string; username?: string | null}[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -350,6 +351,7 @@ export default function BoardDetailPage() {
         boardsApi.getMembers(boardId),
       ]);
       setBoard(boardRes.data);
+      console.log("Board:", boardRes.data);
       setColumns(columnsRes.data);
       setMembers(membersRes.data);
 
@@ -437,10 +439,10 @@ export default function BoardDetailPage() {
   const handleAddMember = async (userId: string) => {
     try {
       await boardsApi.addMember(boardId, userId);
-      setMembers([...members, { id: "", user_id: userId, email: searchResults.find(u => u.id === userId)?.email || "" }]);
+      setMembers([...members, { id: "", user_id: userId, email: searchResults.find(u => u.id === userId)?.email || "", username: searchResults.find(u => u.id === userId)?.username }]);
       setUserSearch("");
       setSearchResults([]);
-      setShowMembers(false);
+      setShowMembers(true);
     } catch (e) {
       console.error(e);
     }
@@ -568,51 +570,37 @@ export default function BoardDetailPage() {
     const activeId = active.id as string;
     const overId = over.id as string;
     
-    // Obtener la columna de origen
     const activeColumnId = findColumn(activeId);
     if (!activeColumnId) return;
 
-    // Determinar columna de destino
     let overColumnId: string | null = null;
     
-    // 1. Si overId es un ID de columna conocido
     for (const col of columns) {
       if (col.id === overId) {
         overColumnId = col.id;
-        console.log("Drop sobre columna directa");
         break;
       }
     }
     
-    // 2. Si overId es una tarjeta, buscar su columna
     if (!overColumnId) {
       for (const colId of Object.keys(cardsByColumn)) {
         const cards = cardsByColumn[colId];
         if (cards?.some((c) => c.id === overId)) {
           overColumnId = colId;
-          console.log("Drop sobre tarjeta, columna:", colId);
           break;
         }
       }
     }
 
-    console.log("onDragEnd:", { activeId, overId, activeColumnId, overColumnId });
-
     if (!overColumnId) {
-      console.log("No se pudo encontrar columna destino");
       return;
     }
 
-    // Si es la misma columna y misma tarjeta, no hacer nada
     if (activeColumnId === overColumnId && activeId === overId) {
-      console.log("Misma tarjeta, no hacer nada");
       return;
     }
 
-    // Si es diferente columna, mover
     if (activeColumnId !== overColumnId) {
-      console.log("Moviendo a columna:", overColumnId);
-      
       setCardsByColumn((prev) => {
         const activeCards = [...(prev[activeColumnId] || [])];
         const overCards = [...(prev[overColumnId] || [])];
@@ -634,21 +622,18 @@ export default function BoardDetailPage() {
       updateCardStatus(activeId, { saving: true, error: false });
 
       try {
-        console.log("Llamando API update:", activeId, { column_id: overColumnId });
-        const response = await cardsApi.update(activeId, {
+        await cardsApi.update(activeId, {
           column_id: overColumnId,
         });
-        console.log("API response:", response.status, response.data);
         updateCardStatus(activeId, { saving: false, error: false });
       } catch (e: any) {
-        console.error("Error moving card:", e.response?.data || e.message || e);
+        console.error("Error moving card:", e);
         updateCardStatus(activeId, { saving: false, error: true });
         fetchBoardData();
       }
       return;
     }
 
-    // Misma columna pero diferente tarjeta - reordenar
     if (activeColumnId === overColumnId && activeId !== overId) {
       const cards = [...(cardsByColumn[activeColumnId] || [])];
       const activeIndex = cards.findIndex((c) => c.id === activeId);
@@ -697,33 +682,40 @@ export default function BoardDetailPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border px-6 py-4 flex items-center justify-between sticky top-0 bg-background z-10">
-        <div className="flex items-center gap-4">
+      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
+        
+        <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/boards")}
             className="p-2 rounded-md hover:bg-muted transition-colors"
           >
             <ArrowLeft className="size-4" />
           </button>
-          <h1 className="text-lg font-semibold tracking-tight">{board?.title}</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{(board?.title || "?").toUpperCase()}</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowMembers(!showMembers)}
-            className={`p-2 rounded-md hover:bg-muted transition-colors relative ${
-              showMembers ? "bg-muted" : ""
-            }`}
-          >
-            <Users className="size-4" />
-            {members.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
-                {members.length}
-              </span>
-            )}
-          </button>
+      <div className="w-72 flex-shrink-0 mt-4">
+          <form onSubmit={handleCreateColumn} className="flex gap-2">
+            <input
+              type="text"
+              value={newColumnTitle}
+              onChange={(e) => setNewColumnTitle(e.target.value)}
+              placeholder="Nueva columna..."
+              className="flex-1 px-3 py-2 rounded-md border border-input bg-card text-sm"
+            />
+            <button
+              type="submit"
+              disabled={creatingColumn || !newColumnTitle.trim()}
+              className="px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {creatingColumn ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Plus className="size-4" />
+              )}
+            </button>
+          </form>
         </div>
       </header>
-
       {showMembers && (
         <div className="border-b border-border bg-muted/30 p-4">
           <div className="max-w-md">
@@ -734,9 +726,9 @@ export default function BoardDetailPage() {
             <div className="space-y-2 mb-3">
               <div className="flex items-center gap-2 p-2 rounded bg-background text-sm">
                 <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
-                  {board?.owner_id?.[0]?.toUpperCase() || "?"}
+                  {(board?.owner_username?.[0] || "?").toUpperCase()}
                 </div>
-                <span className="flex-1">Dueño (tú)</span>
+                <span className="flex-1">Dueño (tú) {board?.owner_username && `(${board.owner_username})`}</span>
               </div>
               {members.map((member) => (
                 <div
@@ -744,9 +736,9 @@ export default function BoardDetailPage() {
                   className="flex items-center gap-2 p-2 rounded bg-background text-sm group"
                 >
                   <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs">
-                    {member.email?.[0]?.toUpperCase() || "?"}
+                    {(member.username?.[0] || member.email?.[0] || "?").toUpperCase()}
                   </div>
-                  <span className="flex-1 truncate">{member.email}</span>
+                  <span className="flex-1 truncate">{member.username || member.email}</span>
                   <button
                     onClick={() => handleRemoveMember(member.user_id)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-destructive"
@@ -787,7 +779,7 @@ export default function BoardDetailPage() {
                       className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
                     >
                       <UserPlus className="size-4" />
-                      {user.email}
+                      {user.username || user.email}
                     </button>
                   ))}
                 </div>
@@ -798,7 +790,7 @@ export default function BoardDetailPage() {
       )}
 
       <main className="p-6 overflow-x-auto">
-<DndContext
+        <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={onDragStart}
@@ -835,28 +827,7 @@ export default function BoardDetailPage() {
           </DragOverlay>
         </DndContext>
 
-        <div className="w-72 flex-shrink-0 mt-4">
-          <form onSubmit={handleCreateColumn} className="flex gap-2">
-            <input
-              type="text"
-              value={newColumnTitle}
-              onChange={(e) => setNewColumnTitle(e.target.value)}
-              placeholder="Nueva columna..."
-              className="flex-1 px-3 py-2 rounded-md border border-input bg-card text-sm"
-            />
-            <button
-              type="submit"
-              disabled={creatingColumn || !newColumnTitle.trim()}
-              className="px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
-            >
-              {creatingColumn ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Plus className="size-4" />
-              )}
-            </button>
-          </form>
-        </div>
+        
       </main>
       <CardModal
         cardId={editingCardId || ""}

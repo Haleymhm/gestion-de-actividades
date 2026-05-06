@@ -6,6 +6,7 @@ class TaskAssigneeOut(BaseModel):
     id: str
     user_id: str
     email: Optional[str] = None
+    username: Optional[str] = None
     model_config = {"from_attributes": True}
 
 class CoordinateAssignee(BaseModel):

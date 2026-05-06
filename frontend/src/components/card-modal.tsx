@@ -455,9 +455,9 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
                     className="flex items-center gap-2 p-2 rounded bg-muted/50 group"
                   >
                     <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs flex-shrink-0">
-                      {user.email?.[0]?.toUpperCase() || "?"}
+                      {(user.username?.[0] || user.email?.[0] || "?").toUpperCase()}
                     </div>
-                    <span className="text-sm truncate flex-1">{user.email}</span>
+                    <span className="text-sm truncate flex-1">{user.username || user.email}</span>
                     <button
                       onClick={() => handleRemoveUser(user.user_id)}
                       className="opacity-0 group-hover:opacity-100 p-1 text-destructive flex-shrink-0 hover:bg-destructive/10 rounded"
@@ -491,9 +491,9 @@ export function CardModal({ cardId, boardId, open, onClose }: CardModalProps) {
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50"
                       >
                         <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs flex-shrink-0">
-                          {user.email[0]?.toUpperCase() || "?"}
+                          {(user.username?.[0] || user.email?.[0] || "?").toUpperCase()}
                         </div>
-                        <span className="truncate">{user.email}</span>
+                        <span className="truncate">{user.username || user.email}</span>
                       </button>
                     ))}
                   </div>

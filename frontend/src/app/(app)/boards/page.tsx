@@ -26,6 +26,7 @@ export default function BoardsPage() {
   const fetchBoards = async () => {
     try {
       const res = await boardsApi.list();
+      console.log("Tableros obtenidos:", res.data);
       const boardsWithStats: BoardWithStats[] = [];
 
       for (const board of res.data) {
@@ -89,16 +90,6 @@ export default function BoardsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Layout className="size-5 text-primary" />
-          </div>
-          <h1 className="text-lg font-semibold tracking-tight">Gestión de actividades</h1>
-        </div>
-        <UserMenu />
-      </header>
-
       <main className="mx-auto max-w-5xl px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -107,25 +98,28 @@ export default function BoardsPage() {
               {boards.length} tablero{boards.length !== 1 ? "s" : ""} en total
             </p>
           </div>
+          <div>
+            <form onSubmit={handleCreate} className="mb-8 flex gap-2">
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Nombre del nuevo tablero..."
+                className="flex-1 px-4 py-3 rounded-lg border border-input bg-background text-sm shadow-sm"
+              />
+              <button
+                type="submit"
+                disabled={creating || !newTitle.trim()}
+                className="px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-medium shadow-sm transition-colors"
+              >
+                {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                Crear
+              </button>
+            </form>
+          </div>
         </div>
 
-        <form onSubmit={handleCreate} className="mb-8 flex gap-2">
-          <input
-            type="text"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Nombre del nuevo tablero..."
-            className="flex-1 px-4 py-3 rounded-lg border border-input bg-background text-sm shadow-sm"
-          />
-          <button
-            type="submit"
-            disabled={creating || !newTitle.trim()}
-            className="px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-medium shadow-sm transition-colors"
-          >
-            {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-            Crear
-          </button>
-        </form>
+
 
         {boards.length === 0 ? (
           <div className="text-center py-16 px-4 rounded-xl border-2 border-dashed border-border">
@@ -160,7 +154,7 @@ export default function BoardsPage() {
                       <Users className="size-3 text-primary" />
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      Dueño: {board.owner_id.slice(0, 6)}...
+                      Dueño: {board.owner_username ? board.owner_username : "Desconocido"}
                     </span>
                   </div>
                 </div>

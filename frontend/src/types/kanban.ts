@@ -2,6 +2,7 @@ export type Board = {
   id: string;
   title: string;
   owner_id: string;
+  owner_username?: string | null;
   created_at?: string;
 };
 
@@ -32,7 +33,7 @@ export type Card = {
   start_date?: string | null;
   end_date?: string | null;
   order: number;
-  assignees?: Array<{ id: string; user_id: string; email: string }>;
+  assignees?: Array<{ id: string; user_id: string; email?: string | null; username?: string | null }>;
   checklists?: ChecklistItem[];
   comments?: Comment[];
   attachments?: Attachment[];

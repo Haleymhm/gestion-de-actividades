@@ -35,24 +35,47 @@ def read_boards(
     """Obtiene todos los tableros del usuario (propios y en los que colabora)."""
     if current_user.global_role == "admin":
         boards = db.query(Board).all()
-        return boards
+    else:
+        owned_boards = db.query(Board).filter(Board.owner_id == current_user.id).all()
         
-    owned_boards = db.query(Board).filter(Board.owner_id == current_user.id).all()
+        member_records = db.query(BoardMember).filter(BoardMember.user_id == current_user.id).all()
+        member_board_ids = [m.board_id for m in member_records]
+        member_boards = db.query(Board).filter(Board.id.in_(member_board_ids)).all()
+        
+        # Merge evitando duplicados (con dictionary keys)
+        boards_map = {b.id: b for b in owned_boards + member_boards}
+        boards = list(boards_map.values())
     
-    member_records = db.query(BoardMember).filter(BoardMember.user_id == current_user.id).all()
-    member_board_ids = [m.board_id for m in member_records]
-    member_boards = db.query(Board).filter(Board.id.in_(member_board_ids)).all()
-    
-    # Merge evitando duplicados (con dictionary keys)
-    boards_map = {b.id: b for b in owned_boards + member_boards}
-    return list(boards_map.values())
+    # Build result with owner_username
+    result = []
+    for board in boards:
+        owner = db.query(User).filter(User.id == board.owner_id).first()
+        result.append({
+            "id": board.id,
+            "title": board.title,
+            "owner_id": board.owner_id,
+            "owner_username": owner.username if owner else None,
+            "created_at": board.created_at,
+            "updated_at": board.updated_at,
+        })
+    return result
 
 @router.get("/{board_id}", response_model=BoardOut)
 def read_board(
     board: Board = Depends(verify_board_access),
+    db: Session = Depends(get_db),
 ) -> Any:
-    """Obtiene el detalle completo de un tablero (previa validación jerarquica de acceso)."""
-    return board
+    """Obtiene el detalle completo de un tablero (previa validación jerárquica de acceso)."""
+    owner = db.query(User).filter(User.id == board.owner_id).first()
+    result = {
+        "id": board.id,
+        "title": board.title,
+        "owner_id": board.owner_id,
+        "owner_username": owner.username if owner else None,
+        "created_at": board.created_at,
+        "updated_at": board.updated_at,
+    }
+    return result
 
 @router.delete("/{board_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_board(
@@ -107,7 +130,8 @@ def get_board_members(
             "id": m.id,
             "board_id": m.board_id,
             "user_id": m.user_id,
-            "email": user.email if user else None
+            "email": user.email if user else None,
+            "username": user.username if user else None,
         })
     
     return result

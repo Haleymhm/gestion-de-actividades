@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
+import { AppHeader } from "@/components/app-header";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -27,5 +28,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <AppHeader />
+      <main>{children}</main>
+    </div>
+  );
 }

@@ -1,10 +1,11 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { LogOut } from "lucide-react"
+import { LogOut, ArrowLeft } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/providers/auth-provider"
+
 
 export default function Home() {
   const { user, isAuthenticated, isLoading, logout } = useAuth()
@@ -21,8 +22,14 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border px-6 py-4 flex items-center justify-between">
+        <button
+            onClick={() => router.push("/boards")}
+            className="p-2 rounded-md hover:bg-muted transition-colors"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
         <h1 className="text-lg font-semibold tracking-tight">
-          Gestión de actividades
+          Gestión de actividades in APP Inicio de sesion y registro
         </h1>
         <div className="flex items-center gap-2">
           <ThemeToggle />

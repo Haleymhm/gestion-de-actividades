@@ -48,6 +48,7 @@ export default function LoginPage() {
       router.push("/boards")
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      console.error("Error al iniciar sesión:", err)
       setError(typeof detail === "string" ? detail : "Error al iniciar sesión")
     }
   }

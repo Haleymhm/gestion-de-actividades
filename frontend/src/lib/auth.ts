@@ -15,7 +15,7 @@ function setStoredToken(token: string): void {
 
 function removeStoredToken(): void {
   localStorage.removeItem(TOKEN_KEY)
-  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`
 }
 
 export async function login(data: LoginInput): Promise<Token> {
